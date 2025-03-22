@@ -79,8 +79,6 @@ def construct_identity_dataframe(mutation_df: pd.DataFrame, conf_threshold: int 
     # Convert df_grouped back into a dataframe - the index is a multi-index of (mutant_ID, plate, well_id)
     df_grouped = df_grouped.reset_index().rename(columns={0: "feature"})
 
-    print(df_grouped)
-
     # Merge the cleaned features back in
     df = pd.merge(df, df_grouped, on=["mutant_ID", "plate", "well_id"], how="left")
 
@@ -93,8 +91,6 @@ def construct_identity_dataframe(mutation_df: pd.DataFrame, conf_threshold: int 
     wt_rows = create_wt_rows()
     df_wt = pd.DataFrame(wt_rows)
     df = pd.concat([df, df_wt], axis=0, ignore_index=False)
-
-    print(df)
 
     check_plate_and_wells_are_unique(df)
     assert (
