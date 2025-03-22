@@ -56,15 +56,9 @@ def construct_identity_dataframe(mutation_df: pd.DataFrame, conf_threshold: int 
     assert df["New Location"].apply(lambda x: x[6:8].isdigit()).all(), df["New Location"].unique()
 
     # Check that all entries in the "New Location.4" column are of the form "A01", "B12", etc.
-    assert df["New Location.4"].apply(lambda x: len(x) == 3).all(), df[
-        "New Location.4"
-    ].unique()
-    assert df["New Location.4"].apply(lambda x: x[0] in "ABCDEFGHIJKLMNOP").all(), df[
-        "New Location.4"
-    ].unique()
-    assert df["New Location.4"].apply(lambda x: x[1:].isdigit()).all(), df[
-        "New Location.4"
-    ].unique()
+    assert df["New Location.4"].apply(lambda x: len(x) == 3).all(), df["New Location.4"].unique()
+    assert df["New Location.4"].apply(lambda x: x[0] in "ABCDEFGHIJKLMNOP").all(), df["New Location.4"].unique()
+    assert df["New Location.4"].apply(lambda x: x[1:].isdigit()).all(), df["New Location.4"].unique()
 
     # Collect columns which we need
     df = df.rename(columns={"New Location": "plate", "New Location.4": "well_id"})
@@ -79,11 +73,13 @@ def construct_identity_dataframe(mutation_df: pd.DataFrame, conf_threshold: int 
 
     # Concatenate all features into a single string, and place into feature column
     df_grouped = df_features.groupby(["mutant_ID", "plate", "well_id"]).apply(
-        lambda x: ",".join(set(x.feature))
+        lambda x: ",".join(str(item) for item in set(x.feature))
     )
 
     # Convert df_grouped back into a dataframe - the index is a multi-index of (mutant_ID, plate, well_id)
     df_grouped = df_grouped.reset_index().rename(columns={0: "feature"})
+
+    print(df_grouped)
 
     # Merge the cleaned features back in
     df = pd.merge(df, df_grouped, on=["mutant_ID", "plate", "well_id"], how="left")
@@ -97,6 +93,8 @@ def construct_identity_dataframe(mutation_df: pd.DataFrame, conf_threshold: int 
     wt_rows = create_wt_rows()
     df_wt = pd.DataFrame(wt_rows)
     df = pd.concat([df, df_wt], axis=0, ignore_index=False)
+
+    print(df)
 
     check_plate_and_wells_are_unique(df)
     assert (
