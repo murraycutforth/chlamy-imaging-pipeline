@@ -51,47 +51,60 @@ def main():
     sep = "\n\t"
     logger.info(f"Found a total of {len(filenames)} tif files: \n\t{sep.join(str(x) for x in filenames)}")
 
+    error_messages = []  # Log all errors and write to file at the end
+
     for filename in tqdm(filenames):
-        name = filename.stem
-        outpath = well_segmentation_output_dir_path(name)
-        plate_num, measurement_num, time_regime = parse_name(filename.name)
+        try:
+            name = filename.stem
+            outpath = well_segmentation_output_dir_path(name)
+            plate_num, measurement_num, time_regime = parse_name(filename.name)
 
-        logger.info(f"Processing plate_num={plate_num}, measurement_num={measurement_num}, time_regime={time_regime}")
+            logger.info(f"Processing plate_num={plate_num}, measurement_num={measurement_num}, time_regime={time_regime}")
 
-        if outpath.exists():
-            logger.info(f"Skipping {name} as it already exists")
-            continue
+            if outpath.exists():
+                logger.info(f"Skipping {name} as it already exists")
+                continue
 
-        outpath.mkdir(parents=True, exist_ok=True)
+            outpath.mkdir(parents=True, exist_ok=True)
 
-        tif = load_image(filename)
+            tif = load_image(filename)
 
-        logger.debug(f"NUM_TIMESTEPS={tif.shape[0]}")
+            logger.debug(f"NUM_TIMESTEPS={tif.shape[0]}")
 
-        tif = remove_failed_photos(tif)
-        tif = remove_repeated_initial_frame_tif(tif)
+            tif = remove_failed_photos(tif)
+            tif = remove_repeated_initial_frame_tif(tif)
 
-        assert len(tif.shape) == 3
-        for frame in tif:
-            assert np.std(frame) > 1e-6  # Check that no blank frames remain
+            assert len(tif.shape) == 3
+            for frame in tif:
+                assert np.std(frame) > 1e-6  # Check that no blank frames remain
 
-        # Note - if these parameters need to be tuned, see test_rotation_correction.py
-        img_array, well_coords, i_vals, j_vals = segment_multiwell_plate(
-            tif,
-            peak_finder_kwargs={"peak_prominence": 1 / 25, "filter_threshold": 0.2, "width": 2},
-            blob_log_kwargs={"threshold": 0.12, "min_sigma": 1, "max_sigma": 2, "exclude_border": 10},
-            output_full=True,
-        )
+            # Note - if these parameters need to be tuned, see test_rotation_correction.py
+            img_array, well_coords, i_vals, j_vals = segment_multiwell_plate(
+                tif,
+                peak_finder_kwargs={"peak_prominence": 1 / 25, "filter_threshold": 0.2, "width": 2},
+                blob_log_kwargs={"threshold": 0.12, "min_sigma": 1, "max_sigma": 2, "exclude_border": 10},
+                output_full=True,
+            )
 
-        assert_expected_shape(i_vals, j_vals, plate_num)
+            assert_expected_shape(i_vals, j_vals, plate_num)
 
-        save_img_array(img_array, name)
+            save_img_array(img_array, name)
 
-        if OUTPUT_VISUALISATIONS:
-            visualise_channels(tif, savedir=well_segmentation_visualisation_dir_path(name))
-            visualise_well_histograms(img_array, name, savedir=well_segmentation_histogram_dir_path(name))
-            visualise_grid_crop(tif, img_array, i_vals, j_vals, well_coords, savedir=well_segmentation_visualisation_dir_path(name))
+            if OUTPUT_VISUALISATIONS:
+                visualise_channels(tif, savedir=well_segmentation_visualisation_dir_path(name))
+                visualise_well_histograms(img_array, name, savedir=well_segmentation_histogram_dir_path(name))
+                visualise_grid_crop(tif, img_array, i_vals, j_vals, well_coords, savedir=well_segmentation_visualisation_dir_path(name))
 
+        except Exception as e:
+            logger.error(f"Error in well segmentation processing of {filename}: {e}")
+            error_messages.append(f"Error in well segmentation processing of {filename}: {e}")
+
+    if error_messages:
+        with open("well_segmentation_errors.txt", "w") as f:
+            for msg in error_messages:
+                f.write(msg + "\n")
+
+    logger.info(f'Failed well segmentation in {len(error_messages)} files')
     logger.info("Program completed normally")
 
 
