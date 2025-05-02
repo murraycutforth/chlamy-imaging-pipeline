@@ -73,6 +73,8 @@ def main():
 
             tif = remove_failed_photos(tif)
             tif = remove_repeated_initial_frame_tif(tif)
+            
+            visualise_channels(tif, savedir=well_segmentation_visualisation_dir_path(name))
 
             assert len(tif.shape) == 3
             for frame in tif:
