@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
 
 
-OUTPUT_VISUALISATIONS = False
+OUTPUT_VISUALISATIONS = True
 LOGGING_LEVEL = logging.DEBUG
 
 
