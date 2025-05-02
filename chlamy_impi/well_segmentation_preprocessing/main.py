@@ -56,12 +56,13 @@ def main():
     for filename in tqdm(filenames):
         try:
             name = filename.stem
+            npy_outpath = npy_img_array_path(name)
             outpath = well_segmentation_output_dir_path(name)
             plate_num, measurement_num, time_regime = parse_name(filename.name)
 
             logger.info(f"Processing plate_num={plate_num}, measurement_num={measurement_num}, time_regime={time_regime}")
 
-            if outpath.exists():
+            if npy_outpath.exists():
                 logger.info(f"Skipping {name} as it already exists")
                 continue
 
@@ -73,7 +74,7 @@ def main():
 
             tif = remove_failed_photos(tif)
             tif = remove_repeated_initial_frame_tif(tif)
-            
+
             visualise_channels(tif, savedir=well_segmentation_visualisation_dir_path(name))
 
             assert len(tif.shape) == 3
