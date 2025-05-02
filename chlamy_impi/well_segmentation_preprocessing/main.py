@@ -80,7 +80,7 @@ def main():
 
             assert len(tif.shape) == 3
             for frame in tif:
-                assert np.std(frame) > 1e-6  # Check that no blank frames remain
+                assert np.std(frame) > 1e-6, f"Image {filename} is all black"
 
             # Note - if these parameters need to be tuned, see test_rotation_correction.py
             img_array, well_coords, i_vals, j_vals = segment_multiwell_plate(
@@ -95,7 +95,6 @@ def main():
             save_img_array(img_array, name)
 
             if OUTPUT_VISUALISATIONS:
-                visualise_channels(tif, savedir=well_segmentation_visualisation_dir_path(name))
                 visualise_well_histograms(img_array, name, savedir=well_segmentation_histogram_dir_path(name))
                 visualise_grid_crop(tif, img_array, i_vals, j_vals, well_coords, savedir=well_segmentation_visualisation_dir_path(name))
 

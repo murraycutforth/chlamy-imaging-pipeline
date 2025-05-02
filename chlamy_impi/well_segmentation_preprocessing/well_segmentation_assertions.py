@@ -2,8 +2,8 @@
 
 def assert_expected_shape(i_vals: list, j_vals: list, plate_num: int) -> None:
     if plate_num == 24 or plate_num == 98:  # These plates have two entire missing rows off the bottom
-        assert len(i_vals) == 15
-        assert len(j_vals) == 25
+        assert len(i_vals) == 15, f"Expected 15 i_vals, got {len(i_vals)}"
+        assert len(j_vals) == 25, f"Expected 25 j_vals, got {len(j_vals)}"
     else:
-        assert len(i_vals) == 17
-        assert len(j_vals) == 25
+        assert len(i_vals) == 17, f"Expected 17 i_vals, got {len(i_vals)}"
+        assert len(j_vals) == 25, f"Expected 25 j_vals, got {len(j_vals)}"
