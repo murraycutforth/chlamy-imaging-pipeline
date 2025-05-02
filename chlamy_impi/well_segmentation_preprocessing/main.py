@@ -23,6 +23,7 @@ from chlamy_impi.well_segmentation_preprocessing.well_segmentation_assertions im
 
 logger = logging.getLogger(__name__)
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
+logging.getLogger("PIL").setLevel(logging.WARNING)
 
 
 OUTPUT_VISUALISATIONS = True
