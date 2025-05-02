@@ -76,8 +76,6 @@ def main():
             tif = remove_failed_photos(tif)
             tif = remove_repeated_initial_frame_tif(tif)
 
-            visualise_channels(tif, savedir=well_segmentation_visualisation_dir_path(name))
-
             assert len(tif.shape) == 3
             for frame in tif:
                 assert np.std(frame) > 1e-6, f"Image {filename} is all black"
@@ -90,13 +88,13 @@ def main():
                 output_full=True,
             )
 
-            assert_expected_shape(i_vals, j_vals, plate_num)
-
-            save_img_array(img_array, name)
-
             if OUTPUT_VISUALISATIONS:
+                visualise_channels(tif, savedir=well_segmentation_visualisation_dir_path(name))
                 visualise_well_histograms(img_array, name, savedir=well_segmentation_histogram_dir_path(name))
                 visualise_grid_crop(tif, img_array, i_vals, j_vals, well_coords, savedir=well_segmentation_visualisation_dir_path(name))
+
+            assert_expected_shape(i_vals, j_vals, plate_num)
+            save_img_array(img_array, name)
 
         except Exception as e:
             logger.error(f"Error in well segmentation processing of {filename}: {e}")
