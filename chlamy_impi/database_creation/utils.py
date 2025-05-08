@@ -80,40 +80,44 @@ def spreadsheet_plate_name_formatting(plate: str, filenames_npy: Optional[list[P
 def parse_name(f, return_date: int = False):
     """Parse the name of a file, e.g. `20200303_7-M4_2h-2h.npy` or `20231119_07-M3_20h_ML.npy`
     """
-    f = str(f)
-    parts = f.split("_")
+    try:
+        f = str(f)
+        parts = f.split("_")
 
-    assert len(parts) in {3, 4}, f
+        assert len(parts) in {3, 4}, f"Unexpected number of parts in filename: {f}, parts: {parts}"
 
-    middle = parts[1].split("-")
-    plate_num = middle[0]
+        middle = parts[1].split("-")
+        plate_num = middle[0]
 
-    measurement_num = middle[1]
+        measurement_num = middle[1]
 
-    if len(parts) == 3:
-        assert len(parts[2].split(".")) == 2, f
-        time_regime = parts[2].split(".")[0]
-    else:
-        assert len(parts[3].split(".")) == 2, f
-        time_regime = parts[2] + "_" + parts[3].split(".")[0]
+        if len(parts) == 3:
+            assert len(parts[2].split(".")) == 2, f
+            time_regime = parts[2].split(".")[0]
+        else:
+            assert len(parts[3].split(".")) == 2, f
+            time_regime = parts[2] + "_" + parts[3].split(".")[0]
 
-    assert re.match(r"M[1-8]", measurement_num), f
-    assert time_regime in {
-        "30s-30s",
-        "1min-1min",
-        "10min-10min",
-        "2h-2h",
-        "20h_ML",
-        "20h_HL",
-        "1min-5min",
-        "5min-5min",
-    }, f"Unexpected time regime: {time_regime}, from filename: {f}"
+        assert re.match(r"M[1-8]", measurement_num), f
+        assert time_regime in {
+            "30s-30s",
+            "1min-1min",
+            "10min-10min",
+            "2h-2h",
+            "20h_ML",
+            "20h_HL",
+            "1min-5min",
+            "5min-5min",
+        }, f"Unexpected time regime: {time_regime}, from filename: {f}"
 
-    if return_date:
-        date = datetime.datetime.strptime(parts[0], "%Y%m%d")
-        return plate_num, measurement_num, time_regime, date
-    else:
-        return plate_num, measurement_num, time_regime
+        if return_date:
+            date = datetime.datetime.strptime(parts[0], "%Y%m%d")
+            return plate_num, measurement_num, time_regime, date
+        else:
+            return plate_num, measurement_num, time_regime
+    except Exception as e:
+        logger.error(f"Error parsing filename: {e}")
+        raise e
 
 
 def compute_measurement_times(meta_df: pd.DataFrame) -> list[datetime.datetime]:

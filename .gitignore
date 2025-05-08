@@ -192,3 +192,5 @@ data/*.xlsx
 data_13062024
 output/database_creation
 output/well_segmentation_cache
+data/chlamy
+well_segmentation_errors.txt

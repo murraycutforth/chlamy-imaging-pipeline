@@ -12,13 +12,15 @@ from segment_multiwell_plate.segment_multiwell_plate import _correct_rotations_l
 from skimage import io
 from segment_multiwell_plate import segment_multiwell_plate, find_well_centres
 from tqdm import tqdm
+import pandas as pd
 
 from chlamy_impi.database_creation.manual_error_correction import remove_failed_photos, remove_repeated_initial_frame_tif
 from chlamy_impi.database_creation.utils import parse_name
 from chlamy_impi.lib.visualize_well_segmentation import visualise_channels, visualise_well_histograms, \
     visualise_grid_crop
 from chlamy_impi.paths import find_all_tif_images, well_segmentation_output_dir_path, npy_img_array_path, \
-    validate_inputs, well_segmentation_visualisation_dir_path, well_segmentation_histogram_dir_path
+    validate_inputs, well_segmentation_visualisation_dir_path, well_segmentation_histogram_dir_path, \
+    get_well_segmentation_processing_results_df_filename
 from chlamy_impi.well_segmentation_preprocessing.well_segmentation_assertions import assert_expected_shape
 
 logger = logging.getLogger(__name__)
@@ -26,8 +28,8 @@ logging.getLogger("matplotlib").setLevel(logging.WARNING)
 logging.getLogger("PIL").setLevel(logging.WARNING)
 
 
-OUTPUT_VISUALISATIONS = True
-LOGGING_LEVEL = logging.DEBUG
+OUTPUT_VISUALISATIONS = False
+LOGGING_LEVEL = logging.INFO
 
 
 def load_image(filename):
@@ -40,7 +42,7 @@ def save_img_array(img_array, name):
     if not outdir.exists():
         outdir.mkdir(parents=True)
 
-    logger.info(f"Saving image array of shape {img_array.shape} to {npy_img_array_path(name)}")
+    logger.debug(f"Saving image array of shape {img_array.shape} to {npy_img_array_path(name)}")
     np.save(npy_img_array_path(name), img_array.astype(np.float32))
 
 
@@ -53,18 +55,25 @@ def main():
     logger.info(f"Found a total of {len(filenames)} tif files: \n\t{sep.join(str(x) for x in filenames)}")
 
     error_messages = []  # Log all errors and write to file at the end
+    processing_results = []
 
     for filename in tqdm(filenames):
+        result = {
+            'filename': filename.stem,
+            'status': 1,
+        }
+
         try:
             name = filename.stem
             npy_outpath = npy_img_array_path(name)
             outpath = well_segmentation_output_dir_path(name)
             plate_num, measurement_num, time_regime = parse_name(filename.name)
 
-            logger.info(f"Processing plate_num={plate_num}, measurement_num={measurement_num}, time_regime={time_regime}")
+            logger.debug(f"Processing plate_num={plate_num}, measurement_num={measurement_num}, time_regime={time_regime}")
 
             if npy_outpath.exists():
-                logger.info(f"Skipping {name} as it already exists")
+                logger.debug(f"Skipping {name} as it already exists")
+                processing_results.append(result)
                 continue
 
             outpath.mkdir(parents=True, exist_ok=True)
@@ -96,16 +105,26 @@ def main():
             assert_expected_shape(i_vals, j_vals, plate_num)
             save_img_array(img_array, name)
 
+            processing_results.append(result)
+
         except Exception as e:
             logger.error(f"Error in well segmentation processing of {filename}: {e}")
-            error_messages.append(f"Error in well segmentation processing of {filename}: {e}")
+            error_messages.append(f"{filename}: {e}")
+
+            result['status'] = 0
+            processing_results.append(result)
 
     if error_messages:
         with open("well_segmentation_errors.txt", "w") as f:
             for msg in error_messages:
                 f.write(msg + "\n")
 
+    df = pd.DataFrame(processing_results)
+    df.to_csv(get_well_segmentation_processing_results_df_filename(), index=False)
+
     logger.info(f'Failed well segmentation in {len(error_messages)} files')
+    for error in error_messages:
+        logger.error(error)
     logger.info("Program completed normally")
 
 

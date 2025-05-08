@@ -15,7 +15,7 @@ PROJECT_ROOT = Path(__file__).parent.parent
 
 # INPUT DIR should contain .tif and .csv files from the camera data folder on google drive
 # https://drive.google.com/drive/folders/1rU8VOIdwBuDX_N6MTn0Bg5SYYb-Ov8zv
-INPUT_DIR = PROJECT_ROOT / "data"
+INPUT_DIR = PROJECT_ROOT / "data" / "chlamy"
 
 # WELL_SEGMENTATION_DIR is where we save the output of the well segmentation as .npy files
 WELL_SEGMENTATION_DIR = PROJECT_ROOT / "output" / "well_segmentation_cache"
@@ -69,6 +69,10 @@ def get_parquet_filename():
 
 def get_csv_filename():
     return DATABASE_DIR / "database.csv"
+
+
+def get_well_segmentation_processing_results_df_filename():
+    return DATABASE_DIR / "well_segmentation_processing_results.csv"
 
 
 def get_npy_and_csv_filenames(dev_mode: bool = False, failed_filenames: list[str] = None) -> tuple[list[Path], list[Path]]:

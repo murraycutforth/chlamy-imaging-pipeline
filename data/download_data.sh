@@ -10,23 +10,23 @@ echo "Total number of tifs: $(ls *.tif | wc -l)"
 
 # Check that each csv has a corresponding tiff with same filename
 for csv in *.csv; do
-  tif=$(echo $csv | sed 's/csv/tif/')
-  if [ ! -f $tif ]; then
+  tif=$(echo "$csv" | sed 's/csv/tif/')
+  if [ ! -f "$tif" ]; then
     echo "Missing tif file for $csv"
 
     # Remove csv file
-    rm $csv
+    rm "$csv"
   fi
 done
 
 # Check that each tif has a corresponding csv with same filename
 for tif in *.tif; do
-  csv=$(echo $tif | sed 's/tif/csv/')
+  csv=$(echo "$tif" | sed 's/tif/csv/')
   if [ ! -f "$csv" ]; then
     echo "Missing csv file for $tif"
 
     # Remove tif file
-    rm $tif
+    rm "$tif"
   fi
 done
 
