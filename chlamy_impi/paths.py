@@ -20,6 +20,9 @@ INPUT_DIR = PROJECT_ROOT / "data" / "chlamy"
 # WELL_SEGMENTATION_DIR is where we save the output of the well segmentation as .npy files
 WELL_SEGMENTATION_DIR = PROJECT_ROOT / "output" / "well_segmentation_cache"
 
+# CORRECTED_WELL_SEGMENTATION_DIR is where we store well segmentation arrays and meta_dfs after error correction
+CORRECTED_WELL_SEGMENTATION_DIR = PROJECT_ROOT / "output" / "corrected_well_segmentation_cache"
+
 # IDENTITY_SPREADSHEET_PATH is the path to the spreadsheet containing the plate identity information
 # https://docs.google.com/spreadsheets/d/1_UcLC4jbI04Rnpt2vUkSCObX8oUY6mzl/edit?usp=drive_link&ouid=108504591016316429773&rtpof=true&sd=true
 # Update - final sheet is now here:
@@ -38,6 +41,11 @@ def find_all_tif_images():
 
 def well_segmentation_output_dir_path(name) -> Path:
     savedir = WELL_SEGMENTATION_DIR / name
+    return savedir
+
+
+def corrected_well_segmentation_output_dir_path(name) -> Path:
+    savedir = CORRECTED_WELL_SEGMENTATION_DIR / name
     return savedir
 
 

@@ -20,7 +20,7 @@ from chlamy_impi.lib.visualize_well_segmentation import visualise_channels, visu
     visualise_grid_crop
 from chlamy_impi.paths import find_all_tif_images, well_segmentation_output_dir_path, npy_img_array_path, \
     validate_inputs, well_segmentation_visualisation_dir_path, well_segmentation_histogram_dir_path, \
-    get_well_segmentation_processing_results_df_filename
+    get_well_segmentation_processing_results_df_filename, get_database_output_dir
 from chlamy_impi.well_segmentation_preprocessing.well_segmentation_assertions import assert_expected_shape
 
 logger = logging.getLogger(__name__)
@@ -109,15 +109,14 @@ def main():
 
         except Exception as e:
             logger.error(f"Error in well segmentation processing of {filename}: {e}")
-            error_messages.append(f"{filename}: {e}")
+            error_messages.append(f"{filename.stem}: {e}")
 
             result['status'] = 0
             processing_results.append(result)
 
-    if error_messages:
-        with open("well_segmentation_errors.txt", "w") as f:
-            for msg in error_messages:
-                f.write(msg + "\n")
+    with open(get_database_output_dir() / "well_segmentation_errors.txt", "w") as f:
+        for msg in error_messages:
+            f.write(msg + "\n")
 
     df = pd.DataFrame(processing_results)
     df.to_csv(get_well_segmentation_processing_results_df_filename(), index=False)

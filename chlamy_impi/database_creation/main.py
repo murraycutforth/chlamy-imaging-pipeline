@@ -25,11 +25,6 @@ from chlamy_impi.database_creation.database_sanity_checks import (
     check_all_plates_have_WT,
     check_non_null_num_mutations,
 )
-from chlamy_impi.database_creation.manual_error_correction import (
-    remove_repeated_initial_frame,
-    manually_fix_erroneous_time_points,
-)
-from chlamy_impi.error_correction.automated_spurious_frame_fix import fix_spurious_frames
 from chlamy_impi.database_creation.utils import (
     index_to_location_rowwise,
     parse_name,
@@ -45,9 +40,9 @@ from chlamy_impi.lib.y2_functions import (
     #compute_all_Fm_averaged,
 )
 from chlamy_impi.paths import (
-    get_npy_and_csv_filenames,
     get_identity_spreadsheet_path,
     get_database_output_dir,
+    corrected_well_segmentation_output_dir_path
 )
 
 logger = logging.getLogger(__name__)
@@ -61,11 +56,31 @@ def prepare_img_array_and_df(filename_meta, filename_npy):
     and attempt to automatically fix and spurious frame errors
     """
     img_array = np.load(filename_npy)
-    meta_df = pd.read_csv(filename_meta, header=0, delimiter=";").iloc[:, :-1]
-
-    meta_df, img_array = fix_spurious_frames(meta_df, img_array, filename_npy.stem)
-
+    meta_df = pd.read_csv(filename_meta, header=0)
     return img_array, meta_df
+
+
+def get_npy_and_csv_filenames(failed_filenames=None):
+    cache_dir = corrected_well_segmentation_output_dir_path(name="placeholder").parent
+
+    filenames_meta = []
+    filenames_npy = []
+
+    for plate_dir in cache_dir.glob("*"):
+        f_np = plate_dir / f"{plate_dir.name}.npy"
+        f_csv = plate_dir / f"{plate_dir.name}.csv"
+        assert f_np.exists(), f"{plate_dir.name} does not exist"
+        assert f_csv.exists(), f"{plate_dir.name} does not exist"
+
+        if failed_filenames:
+            if plate_dir.name in failed_filenames:
+                continue
+
+        filenames_meta.append(f_csv)
+        filenames_npy.append(f_np)
+
+    return filenames_meta, filenames_npy
+
 
 
 def construct_plate_info_df() -> tuple[pd.DataFrame, list]:
@@ -92,7 +107,7 @@ def construct_plate_info_df() -> tuple[pd.DataFrame, list]:
         - Time duration of experiment corresponding to each time point
     """
 
-    filenames_meta, filenames_npy = get_npy_and_csv_filenames(dev_mode=DEV_MODE)
+    filenames_meta, filenames_npy = get_npy_and_csv_filenames()
 
     rows = []
     failed_filenames = []
@@ -169,7 +184,7 @@ def construct_well_info_df(failed_filenames: list[dict]) -> tuple[pd.DataFrame, 
     """
 
     failed_filename_stems = [x['filename'] for x in failed_filenames]
-    filenames_meta, filenames_npy = get_npy_and_csv_filenames(dev_mode=DEV_MODE, failed_filenames=failed_filename_stems)
+    filenames_meta, filenames_npy = get_npy_and_csv_filenames(failed_filenames=failed_filename_stems)
 
     rows = []
 
@@ -383,7 +398,7 @@ def merge_identity_and_experimental_dfs(exptl_data, identity_df, failed_filename
     logger.error(f"Removed plates from identity spreadsheet which were not found in experimental data: {removed_identity_plates}")
 
     # Go through all filenames and log errors if they were not found in the identity spreadsheet
-    filenames_npy, _ = get_npy_and_csv_filenames(dev_mode=DEV_MODE, failed_filenames=failed_filenames)
+    filenames_npy, _ = get_npy_and_csv_filenames(failed_filenames=failed_filenames)
     for filename_npy in filenames_npy:
         plate_num, measurement_num, light_regime, start_date = parse_name(filename_npy.name, return_date=True)
         if plate_num in removed_exptl_plates:
@@ -478,6 +493,13 @@ def main():
 
 def report_file_processing_status(failed_files, total_df):
 
+    error_messages = []
+    for f in failed_files:
+        error_messages.append(f"{f['filename']}: {f['error']}")
+    with open(get_database_output_dir() / "database_assembly_errors.txt", "w") as f:
+        for msg in error_messages:
+            f.write(msg + "\n")
+
     # Add rows for all the successful files - get start date / plate number / measurement number from df
     successful_files = total_df[['plate', 'measurement', 'start_date', 'light_regime']].drop_duplicates().apply(
         lambda x: f"{x['start_date'].strftime('%Y%m%d')}_{x['plate']}-{x['measurement']}_{x['light_regime']}", axis = 1).tolist()
@@ -485,7 +507,7 @@ def report_file_processing_status(failed_files, total_df):
     for f in successful_files:
         failed_files.append({'filename': f, 'error': 'Successfully processed'})
 
-    filenames_npy, _ = get_npy_and_csv_filenames(dev_mode=False)
+    filenames_npy, _ = get_npy_and_csv_filenames()
 
     assert len(failed_files) >= len(filenames_npy), f"Expected at least {len(filenames_npy)} files, got {len(failed_files)}"
 

@@ -3,6 +3,7 @@ In this file, we aim to automatically detect and remove spurious frames by looki
 
 TODO: currently not working / unfinished
 """
+import logging
 
 import numpy as np
 import pandas as pd
@@ -10,6 +11,8 @@ import pandas as pd
 from chlamy_impi.database_creation.constants import get_time_regime_to_expected_intervals
 from chlamy_impi.database_creation.utils import parse_name
 from chlamy_impi.error_correction.plot_measurement_times import combine_date_and_time
+
+logger = logging.getLogger(__name__)
 
 
 def detect_spurious_frames(df: pd.DataFrame, img_arr: np.array, basename: str) -> tuple[list, list]:
@@ -53,7 +56,7 @@ def detect_spurious_frames(df: pd.DataFrame, img_arr: np.array, basename: str) -
                 skipnext = False
                 continue
 
-            print(f"{basename}: Found spurious frame at index {i + 1} with time increment {time_increments[i]}, expected {expected_time_intervals}")
+            logger.warning(f"{basename}: Found spurious frame at index {i + 1} with time increment {time_increments[i]}, expected {expected_time_intervals}")
             #print(f"Corresponding timestamps: {timestamps[i]}, {timestamps[i + 1]}")
             #print(f"Row of df: {df.iloc[i + 1]}")
 
