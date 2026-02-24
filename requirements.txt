@@ -1,0 +1,14 @@
+numpy
+matplotlib
+scikit-image
+openpyxl
+pandas
+tqdm
+segment-multiwell-plate
+pyarrow
+seaborn
+altair
+loguru
+watchdog
+streamlit
+jupyter

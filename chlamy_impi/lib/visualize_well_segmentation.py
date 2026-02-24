@@ -53,8 +53,6 @@ def visualise_well_histograms(img_array, name, savedir):
         hist, edges = np.histogram(well_arr_vals, bins=500, range=(0, 500))
         all_hists.append(hist)
 
-    assert len(all_hists) == 384
-
     fig, ax = plt.subplots(1, 1)
 
     for vals in all_hists:

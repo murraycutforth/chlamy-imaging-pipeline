@@ -5,6 +5,9 @@ that a path is needed, rather than hardcoding the path somewhere else.
 from pathlib import Path
 import logging
 
+import numpy as np
+import pandas as pd
+
 logger = logging.getLogger(__name__)
 
 
@@ -12,15 +15,20 @@ PROJECT_ROOT = Path(__file__).parent.parent
 
 # INPUT DIR should contain .tif and .csv files from the camera data folder on google drive
 # https://drive.google.com/drive/folders/1rU8VOIdwBuDX_N6MTn0Bg5SYYb-Ov8zv
-INPUT_DIR = PROJECT_ROOT / "data"
+INPUT_DIR = PROJECT_ROOT / "data" / "chlamy"
 
 # WELL_SEGMENTATION_DIR is where we save the output of the well segmentation as .npy files
 WELL_SEGMENTATION_DIR = PROJECT_ROOT / "output" / "well_segmentation_cache"
 
+# CORRECTED_WELL_SEGMENTATION_DIR is where we store well segmentation arrays and meta_dfs after error correction
+CORRECTED_WELL_SEGMENTATION_DIR = PROJECT_ROOT / "output" / "corrected_well_segmentation_cache"
+
 # IDENTITY_SPREADSHEET_PATH is the path to the spreadsheet containing the plate identity information
 # https://docs.google.com/spreadsheets/d/1_UcLC4jbI04Rnpt2vUkSCObX8oUY6mzl/edit?usp=drive_link&ouid=108504591016316429773&rtpof=true&sd=true
+# Update - final sheet is now here:
+# https://docs.google.com/spreadsheets/d/1reX1t-C9rwjwhJWRowGZPUV7F4B1Wvvw/edit#gid=1935584839
 IDENTITY_SPREADSHEET_PATH = \
-    INPUT_DIR / "plate_identity" / "Identity plates in Burlacot Lab 20231221 simplified.xlsx - large-lib_rearray2.txt.csv"
+    INPUT_DIR / "Finalized Identities Phase I plates.xlsx"
 
 
 # DATABASE_DIR is where we save the output of the database creation as .csv and parquet files
@@ -33,6 +41,11 @@ def find_all_tif_images():
 
 def well_segmentation_output_dir_path(name) -> Path:
     savedir = WELL_SEGMENTATION_DIR / name
+    return savedir
+
+
+def corrected_well_segmentation_output_dir_path(name) -> Path:
+    savedir = CORRECTED_WELL_SEGMENTATION_DIR / name
     return savedir
 
 
@@ -62,7 +75,15 @@ def get_parquet_filename():
     return DATABASE_DIR / "database.parquet"
 
 
-def get_npy_and_csv_filenames(dev_mode: bool = False):
+def get_csv_filename():
+    return DATABASE_DIR / "database.csv"
+
+
+def get_well_segmentation_processing_results_df_filename():
+    return DATABASE_DIR / "well_segmentation_processing_results.csv"
+
+
+def get_npy_and_csv_filenames(dev_mode: bool = False, failed_filenames: list[str] = None) -> tuple[list[Path], list[Path]]:
     """In this function, we get a list of all the .npy and .csv files in the input directory
 
     We also check that the two lists of filenames are the same, and that the .csv files exist
@@ -71,6 +92,10 @@ def get_npy_and_csv_filenames(dev_mode: bool = False):
     assert INPUT_DIR.exists()
 
     filenames_npy = list(WELL_SEGMENTATION_DIR.glob("*.npy"))
+
+    if failed_filenames:
+        filenames_npy = [x for x in filenames_npy if not x.stem in failed_filenames]
+
     filenames_npy.sort()
 
     filenames_meta = [INPUT_DIR / x.with_suffix(".csv").name for x in filenames_npy]
@@ -89,6 +114,15 @@ def get_npy_and_csv_filenames(dev_mode: bool = False):
     logger.info(f"Found {len(filenames_npy)} files in {INPUT_DIR}")
 
     return filenames_meta, filenames_npy
+
+
+def get_npy_and_csv_filenames_given_basename(basename: str) -> tuple[pd.DataFrame, np.array]:
+    """Given a base name, load the corresponding meta df and image array
+    """
+    meta_df = pd.read_csv(INPUT_DIR / f"{basename}.csv", header=0, delimiter=";").iloc[:, :-1]
+    img_array = np.load(WELL_SEGMENTATION_DIR / f"{basename}.npy")
+
+    return meta_df, img_array
 
 
 def validate_inputs():

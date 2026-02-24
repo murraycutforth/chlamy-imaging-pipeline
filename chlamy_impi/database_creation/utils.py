@@ -1,5 +1,6 @@
 import datetime
 import re
+from pathlib import Path
 from typing import Optional, List
 import logging
 
@@ -8,7 +9,8 @@ import pandas as pd
 import pyarrow as pa
 from pyarrow import parquet as pq
 
-from chlamy_impi.paths import get_database_output_dir, get_parquet_filename
+from chlamy_impi.database_creation.constants import get_possible_frame_numbers
+from chlamy_impi.paths import get_database_output_dir, get_parquet_filename, get_csv_filename
 
 logger = logging.getLogger(__name__)
 
@@ -39,67 +41,106 @@ def index_to_location(i: int, j: int) -> str:
 
 
 def index_to_location_rowwise(x):
-    """Convert a zero-indexed tuple, e.g. (0, 0), to a location string, e.g. "A1" """
+    """Convert a zero-indexed tuple, e.g. (0, 0), to a location string, e.g. "A01"
+
+    Note: Must be A01, B12, C04, etc; not A1, B12, C4.
+    """
 
     letter = chr(ord("A") + x.i)
     number = x.j + 1
 
-    return f"{letter}{number}"
+    return f"{letter}{number:02d}"
 
 
-def spreadsheet_plate_to_numeric(plate: str) -> int:
-    """Convert a plate string, e.g. "Plate 01", to a numeric value, e.g. 1"""
-    assert plate.startswith("Plate ")
+def spreadsheet_plate_name_formatting(plate: str, filenames_npy: Optional[list[Path]] = None) -> str:
+    """Convert a plate string, e.g. "Plate 01", to a equal value to the numpy files, e.g. 1"""
+    assert plate.startswith("Plate "), f"Unexpected plate string: {plate}"
     number_str = plate[6:]
 
-    assert len(number_str) == 2
-    assert number_str[0] in "0123456789"
-    assert number_str[1] in "0123456789"
+    assert len(number_str) <= 4
 
-    return int(number_str)
+    if len(number_str) == 2:
+        assert number_str[0] in "0123456789"
+        assert number_str[1] in "0123456789"
+        assert 1 <= int(number_str) <= 99
+
+        if number_str[0] == "0":
+            number_str = number_str[1]
+
+    if filenames_npy is not None:
+        # Then assert that number_str is in filenames_npy
+        npy_filenames = set([x.stem for x in filenames_npy])
+        if not number_str in npy_filenames:
+            logger.warning(f"Number {number_str} not found in filenames_npy")
+
+    assert isinstance(number_str, str)
+    return number_str
 
 
-def parse_name(f):
+def parse_name(f, return_date: int = False):
     """Parse the name of a file, e.g. `20200303_7-M4_2h-2h.npy` or `20231119_07-M3_20h_ML.npy`
     """
-    f = str(f)
-    parts = f.split("_")
+    try:
+        f = str(f)
+        parts = f.split("_")
 
-    assert len(parts) in {3, 4}, f
+        assert len(parts) in {3, 4}, f"Unexpected number of parts in filename: {f}, parts: {parts}"
 
-    middle = parts[1].split("-")
-    plate_num = int(middle[0])
-    measurement_num = middle[1]
+        middle = parts[1].split("-")
+        plate_num = middle[0]
 
-    if len(parts) == 3:
-        assert len(parts[2].split(".")) == 2, f
-        time_regime = parts[2].split(".")[0]
-    else:
-        assert len(parts[3].split(".")) == 2, f
-        time_regime = parts[2] + "_" + parts[3].split(".")[0]
+        measurement_num = middle[1]
 
-    assert plate_num in {99, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, f
-    assert re.match(r"M[1-6]", measurement_num), f
-    assert time_regime in {
-        "30s-30s",
-        "1min-1min",
-        "10min-10min",
-        "2h-2h",
-        "20h_ML",
-        "20h_HL",
-    }, f"{time_regime}, {f}"
+        if len(parts) == 3:
+            assert len(parts[2].split(".")) == 2, f
+            time_regime = parts[2].split(".")[0]
+        else:
+            assert len(parts[3].split(".")) == 2, f
+            time_regime = parts[2] + "_" + parts[3].split(".")[0]
 
-    return plate_num, measurement_num, time_regime
+        assert re.match(r"M[1-8]", measurement_num), f
+        assert time_regime in {
+            "30s-30s",
+            "1min-1min",
+            "10min-10min",
+            "2h-2h",
+            "20h_ML",
+            "20h_HL",
+            "1min-5min",
+            "5min-5min",
+        }, f"Unexpected time regime: {time_regime}, from filename: {f}"
+
+        if return_date:
+            date = datetime.datetime.strptime(parts[0], "%Y%m%d")
+            return plate_num, measurement_num, time_regime, date
+        else:
+            return plate_num, measurement_num, time_regime
+    except Exception as e:
+        logger.error(f"Error parsing filename: {e}")
+        raise e
 
 
 def compute_measurement_times(meta_df: pd.DataFrame) -> list[datetime.datetime]:
     """In this function, we compute the time of each y2 or npq measuremnt."""
     meta_df["Datetime"] = meta_df[["Date", "Time"]].apply(
-        lambda x: pd.to_datetime(x["Date"]) + pd.to_timedelta(x["Time"]), axis=1
+        lambda x: pd.to_datetime(x["Date"], format="%d.%m.%y")
+                  + pd.to_timedelta(x["Time"]),
+        axis=1,
     )
 
-    assert len(meta_df) <= 82
+    assert len(meta_df) <= max(get_possible_frame_numbers()) - 2, f"Unexpected number of rows in meta_df: {len(meta_df)}"
     return meta_df["Datetime"].tolist()
+
+
+def save_df_to_csv(df: pd.DataFrame):
+    output_dir = get_database_output_dir()
+    if not output_dir.exists():
+        output_dir.mkdir(parents=True)
+
+    filename = get_csv_filename()
+    df.to_csv(filename, index=False)
+    logger.info(f'CSV file saved at: {filename}')
+
 
 
 def save_df_to_parquet(df: pd.DataFrame):
