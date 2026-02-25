@@ -14,12 +14,37 @@ from chlamy_impi.error_correction.plot_measurement_times import combine_date_and
 logger = logging.getLogger(__name__)
 
 
+def get_timestamp_check_exempt_plates() -> frozenset[str]:
+    """Plates exempt from timestamp monotonicity and interval consistency checks.
+
+    These plates have known, unfixable timestamp anomalies in the raw data.
+    Frame count and TIF/CSV alignment checks still apply.  Add new entries
+    here only for plates with confirmed data-collection faults; any plate
+    *not* listed will still be validated in full.
+
+    Known reasons:
+        20231102_4-M4_20h_ML          — 24-hour gap (experiment interrupted overnight)
+        20231104_4-M6_10min-10min     — DST clock rollback (US, first Sunday Nov 2023)
+        20241102_33v3-M6_10min-10min  — DST clock rollback (US, first Sunday Nov 2024)
+    """
+    return frozenset({
+        '20231102_4-M4_20h_ML',
+        '20231104_4-M6_10min-10min',
+        '20241102_33v3-M6_10min-10min',
+    })
+
+
 def validate_tif_csv_pair(tif: np.ndarray, meta_df: pd.DataFrame, basename: str, time_regime: str) -> None:
     """Assert all post-correction invariants. Raises AssertionError with a clear message on failure."""
     _assert_frame_count_even(tif, basename)
     _assert_frame_csv_alignment(tif, meta_df, basename)
     _assert_valid_frame_count(tif, basename, time_regime)
     _assert_no_black_frames(tif, basename)
+
+    if basename in get_timestamp_check_exempt_plates():
+        logger.warning(f"{basename}: skipping timestamp checks (plate is in exempt list)")
+        return
+
     _assert_timestamps_monotone(meta_df, basename)
     _assert_intervals_consistent(meta_df, basename, time_regime)
 
