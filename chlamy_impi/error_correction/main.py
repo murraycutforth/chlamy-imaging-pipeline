@@ -1,66 +1,137 @@
+"""Stage 0: Raw TIF + CSV error correction.
+
+Reads raw TIF/CSV pairs from INPUT_DIR, applies all corrections in order,
+validates the result, and writes cleaned files to CLEANED_RAW_DATA_DIR.
+
+Correction order
+----------------
+1. remove_warmup_pair         (TIF only: strips first 2 frames)
+2. remove_all_black_frame_pairs
+3. remove_duplicate_initial_frame_pair
+4. apply_manual_corrections   (fallback for known plates; timestamp-matched)
+5. remove_spurious_frames     (automated timestamp-based strategy)
+6. validate_tif_csv_pair      (fail-fast assertions)
+7. save cleaned TIF + CSV
+
+Run as::
+
+    python -m chlamy_impi.error_correction.main
+"""
 import logging
+import sys
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 
-from chlamy_impi.error_correction.automated_spurious_frame_fix import fix_spurious_frames
-from chlamy_impi.paths import get_npy_and_csv_filenames, corrected_well_segmentation_output_dir_path, get_database_output_dir
+from chlamy_impi.database_creation.utils import parse_name
+from chlamy_impi.error_correction.corrections import (
+    remove_all_black_frame_pairs,
+    remove_duplicate_initial_frame_pair,
+    remove_warmup_pair,
+)
+from chlamy_impi.error_correction.manual_corrections import apply_manual_corrections
+from chlamy_impi.error_correction.spurious_frame_strategy import remove_spurious_frames
+from chlamy_impi.error_correction.tif_io import load_csv, load_tif, save_csv, save_tif
+from chlamy_impi.error_correction.validation import validate_tif_csv_pair
+from chlamy_impi.paths import find_all_raw_tif_and_csv, get_cleaned_raw_data_dir
 
 logger = logging.getLogger(__name__)
 
 
-def correct_img_array_and_df(filename_meta, filename_npy) -> tuple[np.ndarray, pd.DataFrame]:
-    """Load the image array (pre segmented into wells) and the metadata dataframe for a given plate,
-    and attempt to automatically fix and spurious frame errors
+def correct_plate(tif_path: Path, meta_csv_path: Path, output_dir: Path) -> None:
+    """Apply all corrections to one TIF/CSV pair and write cleaned outputs.
+
+    Parameters
+    ----------
+    tif_path:      Path to the raw ``.tif`` file.
+    meta_csv_path: Path to the matching ``.csv`` metadata file.
+    output_dir:    Directory where the cleaned ``.tif`` and ``.csv`` are saved.
     """
-    img_array = np.load(filename_npy)
-    meta_df = pd.read_csv(filename_meta, header=0, delimiter=";").iloc[:, :-1]
+    basename = tif_path.stem
+    _, _, time_regime = parse_name(basename + ".tif")
 
-    meta_df, img_array = fix_spurious_frames(meta_df, img_array, filename_npy.stem)
+    logger.info(f"Processing {basename} (time_regime={time_regime})")
 
-    return img_array, meta_df
+    tif = load_tif(tif_path)
+    meta_df = load_csv(meta_csv_path)
+    raw_meta_df = meta_df.copy()  # preserve original timestamps for manual corrections
+
+    logger.debug(f"  raw TIF shape: {tif.shape}, CSV rows: {len(meta_df)}")
+
+    # 1. Remove warmup pair (always present, not in CSV)
+    tif = remove_warmup_pair(tif)
+
+    # 2. Remove black frame pairs: full-black (TIF only) then half-black (TIF+CSV)
+    tif, meta_df = remove_all_black_frame_pairs(tif, meta_df)
+
+    # 3. Remove duplicate initial frame pair (safety net, rarely fires after warmup removal)
+    tif, meta_df = remove_duplicate_initial_frame_pair(tif, meta_df)
+
+    # 4. Apply hardcoded manual corrections (known problematic plates).
+    #    raw_meta_df is passed so that target rows are matched by original timestamp
+    #    rather than positional index, which may have drifted due to step 2.
+    tif, meta_df = apply_manual_corrections(tif, meta_df, basename, raw_meta_df=raw_meta_df)
+
+    # 5. Automated spurious-frame removal based on timestamp analysis
+    tif, meta_df = remove_spurious_frames(tif, meta_df, time_regime)
+
+    # 6. Validate — raises immediately if any invariant is violated
+    validate_tif_csv_pair(tif, meta_df, basename, time_regime)
+
+    # 7. Save
+    out_tif = output_dir / tif_path.name
+    out_csv = output_dir / meta_csv_path.name
+    save_tif(tif, out_tif)
+    save_csv(meta_df, out_csv)
+
+    logger.info(f"  saved cleaned TIF ({tif.shape[0]} frames) and CSV ({len(meta_df)} rows)")
 
 
-def store_error_corrected_data(img_array: np.ndarray, meta_df: pd.DataFrame, f_np: Path):
-    assert img_array.shape[2] % 2 == 0
-    assert img_array.shape[2] == len(
-        meta_df) * 2, f"Number of frames ({img_array.shape[2]}) does not match number of rows in meta_df ({len(meta_df)})"
+def _print_summary(total: int, errors: dict[str, str]) -> None:
+    n_ok = total - len(errors)
+    logger.info("=" * 48)
+    logger.info(f"Error correction complete: {n_ok}/{total} plates OK")
+    if errors:
+        logger.error(f"{len(errors)} plate(s) FAILED:")
+        for name, msg in errors.items():
+            logger.error(f"  {name}: {msg}")
+    logger.info("=" * 48)
 
-    filename = f_np.stem
-    outdir = corrected_well_segmentation_output_dir_path(filename)
-    outdir.mkdir(parents=True, exist_ok=True)
-    np.save(outdir / (filename + '.npy'), img_array)
-    meta_df.to_csv(outdir / (filename + '.csv'), index=False)
 
+def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s — %(message)s",
+    )
 
-def main():
-    logger.info("="*32)
-    logger.info("Starting error correction code")
-    logger.info("="*32)
-    error_messages = []
+    logger.info("=" * 48)
+    logger.info("Stage 0: Raw TIF/CSV error correction")
+    logger.info("=" * 48)
 
-    filename_meta, filename_npy = get_npy_and_csv_filenames()
+    tif_csv_pairs = find_all_raw_tif_and_csv()
+    if not tif_csv_pairs:
+        logger.error("No TIF/CSV pairs found in INPUT_DIR")
+        raise SystemExit("ERROR: No input files found")
 
-    logger.info(f"Found total of {len(filename_npy)} plates")
+    logger.info(f"Found {len(tif_csv_pairs)} TIF/CSV pair(s)")
 
-    for f_np, f_meta in zip(filename_npy, filename_meta):
+    output_dir = get_cleaned_raw_data_dir()
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    errors: dict[str, str] = {}
+
+    for tif_path, csv_path in tif_csv_pairs:
         try:
-            img_array, meta_df = correct_img_array_and_df(f_meta, f_np)
-            store_error_corrected_data(img_array, meta_df, f_np)
-        except Exception as e:
-            logger.error(f"Error processing file {f_np.stem}. Skipping.")
-            error_messages.append(f"{f_np.stem}: {e}")
-            continue
+            correct_plate(tif_path, csv_path, output_dir)
+        except Exception as exc:
+            logger.error(f"FAILED {tif_path.stem}: {exc}")
+            errors[tif_path.stem] = str(exc)
 
-    num_errors = len(error_messages)
-    logger.info(f"{len(filename_npy) - num_errors} plates processed successfully.")
-    logger.info(f"Found {num_errors} errors")
+    _print_summary(len(tif_csv_pairs), errors)
 
-    with open(get_database_output_dir() / "frame_correction_errors.txt", "w") as f:
-        for msg in error_messages:
-            f.write(msg + "\n")
+    if errors:
+        raise SystemExit(f"ERROR: {len(errors)} plate(s) failed correction")
+
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
     main()

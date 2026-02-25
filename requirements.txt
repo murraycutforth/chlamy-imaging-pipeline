@@ -7,8 +7,6 @@ tqdm
 segment-multiwell-plate
 pyarrow
 seaborn
-altair
-loguru
-watchdog
-streamlit
 jupyter
+pytest
+imagecodecs

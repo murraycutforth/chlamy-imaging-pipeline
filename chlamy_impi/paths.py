@@ -15,7 +15,7 @@ PROJECT_ROOT = Path(__file__).parent.parent
 
 # INPUT DIR should contain .tif and .csv files from the camera data folder on google drive
 # https://drive.google.com/drive/folders/1rU8VOIdwBuDX_N6MTn0Bg5SYYb-Ov8zv
-INPUT_DIR = PROJECT_ROOT / "data" / "chlamy"
+INPUT_DIR = PROJECT_ROOT / "data"
 
 # WELL_SEGMENTATION_DIR is where we save the output of the well segmentation as .npy files
 WELL_SEGMENTATION_DIR = PROJECT_ROOT / "output" / "well_segmentation_cache"
@@ -34,9 +34,33 @@ IDENTITY_SPREADSHEET_PATH = \
 # DATABASE_DIR is where we save the output of the database creation as .csv and parquet files
 DATABASE_DIR = PROJECT_ROOT / "output" / "database_creation"
 
+# CLEANED_RAW_DATA_DIR is where we save cleaned TIF + CSV files after Stage 0 error correction
+CLEANED_RAW_DATA_DIR = PROJECT_ROOT / "output" / "cleaned_raw_data"
+
 
 def find_all_tif_images():
     return list(INPUT_DIR.glob("*.tif"))
+
+
+def get_cleaned_raw_data_dir() -> Path:
+    return CLEANED_RAW_DATA_DIR
+
+
+def find_all_cleaned_tif_images() -> list[Path]:
+    return sorted(CLEANED_RAW_DATA_DIR.glob("*.tif"))
+
+
+def find_all_raw_tif_and_csv() -> list[tuple[Path, Path]]:
+    """Return sorted list of (tif_path, csv_path) pairs from INPUT_DIR."""
+    tif_files = sorted(INPUT_DIR.glob("*.tif"))
+    pairs = []
+    for tif_path in tif_files:
+        csv_path = INPUT_DIR / (tif_path.stem + ".csv")
+        if csv_path.exists():
+            pairs.append((tif_path, csv_path))
+        else:
+            logger.warning(f"No CSV found for {tif_path.name}, skipping")
+    return pairs
 
 
 def well_segmentation_output_dir_path(name) -> Path:
@@ -68,6 +92,8 @@ def get_identity_spreadsheet_path():
 
 
 def get_database_output_dir():
+    if not DATABASE_DIR.exists():
+        DATABASE_DIR.mkdir()
     return DATABASE_DIR
 
 
