@@ -31,11 +31,14 @@ IDENTITY_SPREADSHEET_PATH = \
     INPUT_DIR / "Finalized Identities Phase I plates.xlsx"
 
 
-# DATABASE_DIR is where we save the output of the database creation as .csv and parquet files
+# DATABASE_DIR is where we save the output of the database creation as .csv files
 DATABASE_DIR = PROJECT_ROOT / "output" / "database_creation"
 
 # CLEANED_RAW_DATA_DIR is where we save cleaned TIF + CSV files after Stage 0 error correction
 CLEANED_RAW_DATA_DIR = PROJECT_ROOT / "output" / "cleaned_raw_data"
+
+# IMAGE_PROCESSING_DIR is where we save parquet files produced by Stage 2a image processing
+IMAGE_PROCESSING_DIR = PROJECT_ROOT / "output" / "image_processing"
 
 
 def find_all_tif_images():
@@ -97,8 +100,22 @@ def get_database_output_dir():
     return DATABASE_DIR
 
 
-def get_parquet_filename():
-    return DATABASE_DIR / "database.parquet"
+def get_image_processing_output_dir() -> Path:
+    if not IMAGE_PROCESSING_DIR.exists():
+        IMAGE_PROCESSING_DIR.mkdir(parents=True)
+    return IMAGE_PROCESSING_DIR
+
+
+def get_plates_parquet_path() -> Path:
+    return IMAGE_PROCESSING_DIR / "plates.parquet"
+
+
+def get_wells_parquet_path() -> Path:
+    return IMAGE_PROCESSING_DIR / "wells.parquet"
+
+
+def get_timeseries_parquet_path() -> Path:
+    return IMAGE_PROCESSING_DIR / "timeseries.parquet"
 
 
 def get_csv_filename():

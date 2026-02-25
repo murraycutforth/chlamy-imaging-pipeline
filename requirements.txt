@@ -5,7 +5,6 @@ openpyxl
 pandas
 tqdm
 segment-multiwell-plate
-pyarrow
 seaborn
 jupyter
 pytest

@@ -1,4 +1,4 @@
-"""In this file, we take preprocessed image data (segmented into wells) and write out a .parquet file containing the database
+"""In this file, we take preprocessed image data (segmented into wells) and write out a .csv file containing the database
 
 The script is controlled using hard-coded constants at the top of the file. These are:
     - DEV_MODE: whether to run in development mode (only use a few files)
@@ -29,7 +29,7 @@ from chlamy_impi.database_creation.utils import (
     index_to_location_rowwise,
     parse_name,
     compute_measurement_times,
-    save_df_to_parquet, save_df_to_csv,
+    save_df_to_csv,
 )
 from chlamy_impi.lib.fv_fm_functions import compute_all_fv_fm_averaged
 from chlamy_impi.lib.mask_functions import compute_threshold_mask
@@ -42,43 +42,35 @@ from chlamy_impi.lib.y2_functions import (
 from chlamy_impi.paths import (
     get_identity_spreadsheet_path,
     get_database_output_dir,
-    corrected_well_segmentation_output_dir_path
+    WELL_SEGMENTATION_DIR,
+    CLEANED_RAW_DATA_DIR,
 )
+from chlamy_impi.error_correction.tif_io import load_csv
 
 logger = logging.getLogger(__name__)
 
 DEV_MODE = False
-IGNORE_ERRORS = True
+IGNORE_ERRORS = False
 
 
 def prepare_img_array_and_df(filename_meta, filename_npy):
-    """Load the image array (pre segmented into wells) and the metadata dataframe for a given plate,
-    and attempt to automatically fix and spurious frame errors
-    """
+    """Load the image array (pre segmented into wells) and the metadata dataframe for a given plate."""
     img_array = np.load(filename_npy)
-    meta_df = pd.read_csv(filename_meta, header=0)
+    meta_df = load_csv(filename_meta)
     return img_array, meta_df
 
 
 def get_npy_and_csv_filenames(failed_filenames=None):
-    cache_dir = corrected_well_segmentation_output_dir_path(name="placeholder").parent
-
+    npy_files = sorted(WELL_SEGMENTATION_DIR.glob("*.npy"))
     filenames_meta = []
     filenames_npy = []
-
-    for plate_dir in cache_dir.glob("*"):
-        f_np = plate_dir / f"{plate_dir.name}.npy"
-        f_csv = plate_dir / f"{plate_dir.name}.csv"
-        assert f_np.exists(), f"{plate_dir.name} does not exist"
-        assert f_csv.exists(), f"{plate_dir.name} does not exist"
-
-        if failed_filenames:
-            if plate_dir.name in failed_filenames:
-                continue
-
-        filenames_meta.append(f_csv)
-        filenames_npy.append(f_np)
-
+    for npy_path in npy_files:
+        if failed_filenames and npy_path.stem in failed_filenames:
+            continue
+        csv_path = CLEANED_RAW_DATA_DIR / f"{npy_path.stem}.csv"
+        assert csv_path.exists(), f"No CSV found for {npy_path.name}"
+        filenames_meta.append(csv_path)
+        filenames_npy.append(npy_path)
     return filenames_meta, filenames_npy
 
 
@@ -126,7 +118,10 @@ def construct_plate_info_df() -> tuple[pd.DataFrame, list]:
 
         try:
             img_array, _ = prepare_img_array_and_df(filename_meta, filename_npy)
-        except AssertionError as e:
+            assert img_array.shape[2] % 2 == 0, f"Odd frame count: {img_array.shape[2]}"
+            _, thresholds = compute_threshold_mask(img_array, return_thresholds=True)
+            dark_threshold, light_threshold = thresholds
+        except Exception as e:
             if IGNORE_ERRORS:
                 logger.error(e)
                 logger.error(f"Error processing file {filename_npy.stem}. Skipping.")
@@ -134,11 +129,6 @@ def construct_plate_info_df() -> tuple[pd.DataFrame, list]:
                 continue
             else:
                 raise
-
-        assert img_array.shape[2] % 2 == 0
-
-        _, thresholds = compute_threshold_mask(img_array, return_thresholds=True)
-        dark_threshold, light_threshold = thresholds
 
         row_data = {
             "plate": plate_num,
@@ -197,32 +187,18 @@ def construct_well_info_df(failed_filenames: list[dict]) -> tuple[pd.DataFrame, 
 
         try:
             img_array, meta_df = prepare_img_array_and_df(filename_meta, filename_npy)
-        except Exception as e:
-            logger.error(f"Error processing file {filename_npy.stem}. Skipping.")
-            logger.error(e)
-            failed_filenames.append({'filename': filename_npy.stem, 'error': str(e)})
-            continue
-
-        measurement_times = compute_measurement_times(meta_df=meta_df)
-
-        assert img_array.shape[2] % 2 == 0
-        assert img_array.shape[2] // 2 == len(measurement_times)
-
-        try:
+            measurement_times = compute_measurement_times(meta_df=meta_df)
+            assert img_array.shape[2] % 2 == 0, f"Odd frame count: {img_array.shape[2]}"
+            assert img_array.shape[2] // 2 == len(measurement_times), \
+                f"Frame/CSV mismatch: {img_array.shape[2]} frames but {len(measurement_times)} CSV rows"
             mask_array = compute_threshold_mask(img_array)
             y2_array, y2_array_std = compute_all_y2_averaged(img_array, mask_array, return_std=True)
             fv_fm_array, fv_fm_std = compute_all_fv_fm_averaged(img_array, mask_array, return_std=True)
             ynpq_array = compute_all_ynpq_averaged(img_array, mask_array)
-
-            # TODO: Re-implement these functions? I think they just provide the raw avg intensities.
-            # includes F0
-            #F_array = compute_all_F_averaged(img_array, mask_array)
-            # includes Fm at t=0
-            #Fm_array = compute_all_Fm_averaged(img_array, mask_array)
-
-        except AssertionError as e:
+        except Exception as e:
             if IGNORE_ERRORS:
-                logger.error(f"Error computing image features for file {filename_npy.name}. Skipping.")
+                logger.error(f"Error processing file {filename_npy.stem}. Skipping.")
+                logger.error(e)
                 failed_filenames.append({'filename': filename_npy.stem, 'error': str(e)})
                 continue
             else:
@@ -398,7 +374,7 @@ def merge_identity_and_experimental_dfs(exptl_data, identity_df, failed_filename
     logger.error(f"Removed plates from identity spreadsheet which were not found in experimental data: {removed_identity_plates}")
 
     # Go through all filenames and log errors if they were not found in the identity spreadsheet
-    filenames_npy, _ = get_npy_and_csv_filenames(failed_filenames=failed_filenames)
+    _, filenames_npy = get_npy_and_csv_filenames(failed_filenames=failed_filenames)
     for filename_npy in filenames_npy:
         plate_num, measurement_num, light_regime, start_date = parse_name(filename_npy.name, return_date=True)
         if plate_num in removed_exptl_plates:
@@ -482,9 +458,6 @@ def main():
 
     report_file_processing_status(failed_files, total_df)
 
-    logger.info("Writing dataframe to parquet file...")
-    save_df_to_parquet(total_df)
-
     logger.info("Writing dataframe to csv file...")
     save_df_to_csv(total_df)
 
@@ -507,7 +480,7 @@ def report_file_processing_status(failed_files, total_df):
     for f in successful_files:
         failed_files.append({'filename': f, 'error': 'Successfully processed'})
 
-    filenames_npy, _ = get_npy_and_csv_filenames()
+    _, filenames_npy = get_npy_and_csv_filenames()
 
     assert len(failed_files) >= len(filenames_npy), f"Expected at least {len(filenames_npy)} files, got {len(failed_files)}"
 

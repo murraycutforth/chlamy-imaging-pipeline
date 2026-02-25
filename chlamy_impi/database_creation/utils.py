@@ -1,16 +1,13 @@
 import datetime
 import re
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional
 import logging
 
 import numpy as np
 import pandas as pd
-import pyarrow as pa
-from pyarrow import parquet as pq
-
 from chlamy_impi.database_creation.constants import get_possible_frame_numbers
-from chlamy_impi.paths import get_database_output_dir, get_parquet_filename, get_csv_filename
+from chlamy_impi.paths import get_database_output_dir, get_csv_filename
 
 logger = logging.getLogger(__name__)
 
@@ -143,21 +140,3 @@ def save_df_to_csv(df: pd.DataFrame):
 
 
 
-def save_df_to_parquet(df: pd.DataFrame):
-    table = pa.Table.from_pandas(df)
-
-    output_dir = get_database_output_dir()
-    if not output_dir.exists():
-        output_dir.mkdir(parents=True)
-
-    filename = get_parquet_filename()
-    pq.write_table(table, output_dir / filename)
-    logger.info("File saved at: {}".format(output_dir / filename))
-
-
-def read_df_from_parquet(columns: Optional[List[str]] = None
-) -> pd.DataFrame:
-    filename = get_parquet_filename()
-    table = pq.read_table(filename, columns = columns)
-    df = table.to_pandas()
-    return df
