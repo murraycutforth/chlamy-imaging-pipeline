@@ -1,59 +1,134 @@
 # Chlamy-IMPI
 
 This repository contains the image processing and data analysis pipeline used to study photosynthesis in a large
-number of Chlamydomonas reinhardtii mutants under various growth conditions.
+number of *Chlamydomonas reinhardtii* mutants under various growth conditions.
 
 Note: this repository is still under development, so things might break and these instructions might be incomplete.
 
 
-## Image processing
+## Environment setup
 
-###: 0. How to run script covering entire pipeline:
-
-How to run script on lab windows laptop:
-
-    1. Windows key. Type anaconda powershell. Select option: run as administrator.
-    2. Type: cd “C:\Users\Burlacot Lab\Documents\GitHub\chlamy-ImPi\scripts” (quotes are important here)
-    3. Type: .\generate_database.ps1
-    4. Monitor output from code
-    5. New files will appear in C:\Users\Burlacot Lab\Documents\GitHub\chlamy-ImPi\output\database_creation
-
-### 1. Well segmentation
-
-After setting up the environment (see below), download all image data from the google drive folder,
-located at: https://drive.google.com/drive/folders/1rU8VOIdwBuDX_N6MTn0Bg5SYYb-Ov8zv and place all .tif files
-in the `data` directory in this project. Then run the image processing pipeline:
-
-```
-python well_segmentation_preprocessing/main.py
+```bash
+pip install -r requirements.txt
 ```
 
-This should store a bunch of `.npy` files in the `output/well_segmentation_cache` directory. Note- you can skip this step, and download 
-the `.npy` files directly from a shared cache here: https://drive.google.com/drive/folders/1LB1znkc95zbgKAPVU2Rz4MMwbdcjtsBK
+The conda environment on the lab Mac is at `/Users/murraycutforth/miniconda3/envs/chlamy/bin/python`.
 
 
-### 2. Database creation
+## Pipeline overview
 
-After running well_segmentation_preprocessing/main.py with new data, we need to first manually correct the 
-mysterious dodgy time points which are intermittently present in the data. I couldn't easily find a 
-way to automate this step which worked every time.
-
-Run:
+The pipeline runs in four sequential stages. Place all raw `.tif` and `.csv` files in `data/chlamy/` before starting.
 
 ```
-python database_creation/investigate_meta_df.py
+data/chlamy/          (raw TIF + CSV)
+      │
+      ▼
+[Stage 0]  python -m chlamy_impi.error_correction.main
+      │    output/cleaned_raw_data/   (cleaned TIF + CSV)
+      │
+      ▼
+[Stage 1]  python -m chlamy_impi.well_segmentation_preprocessing.main
+      │    output/well_segmentation_cache/   (.npy arrays, shape 16×24×frames×H×W)
+      │
+      ▼
+[Stage 2]  python -m chlamy_impi.database_creation.main
+           output/database_creation/database.parquet + database.csv
 ```
 
-and manually edit error_correction.py:manually_fix_erroneous_time_points to fix them.
+All input/output paths are configured in `chlamy_impi/paths.py`.
 
-Now we can create the database:
+
+## Stage 0 — Raw TIF/CSV error correction
+
+Reads every `.tif` / `.csv` pair from `data/chlamy/`, applies a sequence of automated corrections,
+validates the result, and writes cleaned copies to `output/cleaned_raw_data/`.
+
+```bash
+python -m chlamy_impi.error_correction.main
+```
+
+### What it corrects
+
+Every raw TIF has a fixed header structure that must be stripped before the frames align with the CSV:
 
 ```
-python database_creation/main.py
+frames [0, 1]   warmup duplicate        — no CSV row  (always present)
+frames [2, 3]   pre-measurement trigger — no CSV row  (full-black or half-black)
+frames [4, 5]   measurement 0           — CSV row 0
+frames [6, 7]   measurement 1           — CSV row 1
+...
+```
+
+Corrections are applied in this order:
+
+1. **Remove warmup pair** — strips frames 0–1 (TIF only).
+2. **Remove black frame pairs** — removes pre-measurement trigger pairs from TIF only; removes mid-experiment half-black pairs from both TIF and CSV.
+3. **Remove duplicate initial frame pair** — safety net for a rare double-warmup edge case.
+4. **Apply manual corrections** — hardcoded removals for 32 known-problematic plates (`error_correction/manual_corrections.py`). Target rows are matched by timestamp so index drift from earlier steps is handled correctly.
+5. **Remove spurious frames** — automated timestamp-based detection removes any remaining extra frame pairs.
+6. **Validate** — asserts frame count, TIF/CSV alignment, no black frames, monotone timestamps, and interval consistency. Raises immediately on failure.
+7. **Save** cleaned TIF + CSV to `output/cleaned_raw_data/`.
+
+### Valid post-correction frame counts
+
+| Time regime | Valid frame counts |
+|---|---|
+| `30s-30s` | 160, 162, 164, 172, 178, 180 |
+| `1min-1min` | 160, 162, 164, 172, 180 |
+| `10min-10min` | 160, 162, 164, 172, 180 |
+| `1min-5min` | 180 |
+| `5min-5min` | 180 |
+| `2h-2h` | 82, 84, 98, 100 |
+| `20h_ML` | 82, 84, 92 |
+| `20h_HL` | 82, 84, 90, 92 |
+
+Lower counts (82, 160, 162) are truncated experiments. Higher counts (90, 98, 178) are Phase II variants with additional measurements.
+
+### Known unfixable plates
+
+Three plates are exempt from timestamp validation (frame count is still checked) due to confirmed data-collection faults. They are listed in `get_timestamp_check_exempt_plates()` in `error_correction/validation.py`:
+
+| Plate | Reason |
+|---|---|
+| `20231102_4-M4_20h_ML` | 24-hour gap — experiment interrupted overnight |
+| `20231104_4-M6_10min-10min` | DST clock rollback (US, Nov 2023) |
+| `20241102_33v3-M6_10min-10min` | DST clock rollback (US, Nov 2024) |
+
+Any future plate with similar issues must be added to this list explicitly; it will otherwise fail validation.
+
+### Adding a new manual correction
+
+If a new plate has a spurious frame that the automated step misses, add an entry to
+`get_filename_to_erroneous_rows()` in `error_correction/manual_corrections.py`:
+
+```python
+'YYYYMMDD_N-MX_regime': [row_index, ...],   # 0-based raw CSV row indices
 ```
 
 
-Note: see the file `paths.py` for where the code looks to read and write these file caches from.
+## Stage 1 — Well segmentation
+
+Segments each frame of each cleaned TIF into individual wells using the `segment-multiwell-plate` library.
+
+```bash
+python -m chlamy_impi.well_segmentation_preprocessing.main
+```
+
+Output: `.npy` arrays of shape `(16, 24, num_frames, H, W)` in `output/well_segmentation_cache/`.
+
+
+## Stage 2 — Database creation
+
+Computes per-well photosynthetic parameters and joins with the identity spreadsheet.
+
+```bash
+python -m chlamy_impi.database_creation.main
+```
+
+Output: `output/database_creation/database.parquet` and `database.csv`.
+
+Key columns: `plate`, `i`, `j`, `well_id`, `fv_fm`, `y2_1`…`y2_81`, `ynpq_1`…`ynpq_81`,
+`measurement_time_0`…`measurement_time_81`, `mutant_ID`, `gene`, `confidence_level`.
 
 
 ## Data analysis
@@ -61,20 +136,15 @@ Note: see the file `paths.py` for where the code looks to read and write these f
 Coming soon.
 
 
-## Poetry instructions:
+## Streamlit interactive demo
 
-First install poetry: https://python-poetry.org/docs/#installation
-
-Next, install the dependencies and activate the virtual environment:
-
-```
-$ poetry install
-$ poetry shell
+```bash
+streamlit run chlamy_impi/interactive.demo.py
 ```
 
-## Streamlit instructions:
 
-```
-$ poetry shell
-$ streamlit run chlamy_impi/interactive.demo.py
+## Running tests
+
+```bash
+python -m unittest discover tests
 ```
