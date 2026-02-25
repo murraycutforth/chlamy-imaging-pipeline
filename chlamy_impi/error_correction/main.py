@@ -8,20 +8,16 @@ Correction order
 1. remove_warmup_pair         (TIF only: strips first 2 frames)
 2. remove_all_black_frame_pairs
 3. remove_duplicate_initial_frame_pair
-4. apply_manual_corrections   (fallback for known plates; timestamp-matched)
-5. remove_spurious_frames     (automated timestamp-based strategy)
-6. validate_tif_csv_pair      (fail-fast assertions)
-7. save cleaned TIF + CSV
+4. remove_spurious_frames     (automated timestamp-based strategy)
+5. validate_tif_csv_pair      (fail-fast assertions)
+6. save cleaned TIF + CSV
 
 Run as::
 
     python -m chlamy_impi.error_correction.main
 """
 import logging
-import sys
 from pathlib import Path
-
-import numpy as np
 
 from chlamy_impi.database_creation.utils import parse_name
 from chlamy_impi.error_correction.corrections import (
@@ -29,7 +25,6 @@ from chlamy_impi.error_correction.corrections import (
     remove_duplicate_initial_frame_pair,
     remove_warmup_pair,
 )
-from chlamy_impi.error_correction.manual_corrections import apply_manual_corrections
 from chlamy_impi.error_correction.spurious_frame_strategy import remove_spurious_frames
 from chlamy_impi.error_correction.tif_io import load_csv, load_tif, save_csv, save_tif
 from chlamy_impi.error_correction.validation import validate_tif_csv_pair
@@ -54,7 +49,6 @@ def correct_plate(tif_path: Path, meta_csv_path: Path, output_dir: Path) -> None
 
     tif = load_tif(tif_path)
     meta_df = load_csv(meta_csv_path)
-    raw_meta_df = meta_df.copy()  # preserve original timestamps for manual corrections
 
     logger.debug(f"  raw TIF shape: {tif.shape}, CSV rows: {len(meta_df)}")
 
@@ -67,18 +61,13 @@ def correct_plate(tif_path: Path, meta_csv_path: Path, output_dir: Path) -> None
     # 3. Remove duplicate initial frame pair (safety net, rarely fires after warmup removal)
     tif, meta_df = remove_duplicate_initial_frame_pair(tif, meta_df)
 
-    # 4. Apply hardcoded manual corrections (known problematic plates).
-    #    raw_meta_df is passed so that target rows are matched by original timestamp
-    #    rather than positional index, which may have drifted due to step 2.
-    tif, meta_df = apply_manual_corrections(tif, meta_df, basename, raw_meta_df=raw_meta_df)
-
-    # 5. Automated spurious-frame removal based on timestamp analysis
+    # 4. Automated spurious-frame removal based on timestamp analysis
     tif, meta_df = remove_spurious_frames(tif, meta_df, time_regime)
 
-    # 6. Validate — raises immediately if any invariant is violated
+    # 5. Validate — raises immediately if any invariant is violated
     validate_tif_csv_pair(tif, meta_df, basename, time_regime)
 
-    # 7. Save
+    # 6. Save
     out_tif = output_dir / tif_path.name
     out_csv = output_dir / meta_csv_path.name
     save_tif(tif, out_tif)
