@@ -1,9 +1,10 @@
 # Authors: Murray Cutforth, Leron Perez
 #
-# This script is given a directory of .tiff images, each one containing multiple time points from a single plate
-# It will automatically divide the wells in each image, and compute a mean fluorescence value for each well
-# at each time point. It will then write out this array (shape = (timepoints, rows, columns)) to a new .npy file.
-# The input and output directories are specified in chlamy_impi/paths.py
+# Stage 1: Well Segmentation Preprocessing
+#
+# Reads cleaned TIF files from CLEANED_RAW_DATA_DIR (Stage 0 output),
+# segments individual wells from each 384-well plate image stack,
+# and saves per-plate .npy arrays to WELL_SEGMENTATION_DIR.
 
 import logging
 
@@ -14,12 +15,11 @@ from segment_multiwell_plate import segment_multiwell_plate, find_well_centres
 from tqdm import tqdm
 import pandas as pd
 
-from chlamy_impi.database_creation.manual_error_correction import remove_failed_photos, remove_repeated_initial_frame_tif
 from chlamy_impi.database_creation.utils import parse_name
 from chlamy_impi.lib.visualize_well_segmentation import visualise_channels, visualise_well_histograms, \
     visualise_grid_crop
-from chlamy_impi.paths import find_all_tif_images, well_segmentation_output_dir_path, npy_img_array_path, \
-    validate_inputs, well_segmentation_visualisation_dir_path, well_segmentation_histogram_dir_path, \
+from chlamy_impi.paths import find_all_cleaned_tif_images, well_segmentation_output_dir_path, npy_img_array_path, \
+    validate_stage1_inputs, well_segmentation_visualisation_dir_path, well_segmentation_histogram_dir_path, \
     get_well_segmentation_processing_results_df_filename, get_database_output_dir
 from chlamy_impi.well_segmentation_preprocessing.well_segmentation_assertions import assert_expected_shape
 
@@ -47,12 +47,12 @@ def save_img_array(img_array, name):
 
 
 def main():
-    logger.info("\n" + "=" * 32 + "\nStarting main.py...\n" + "=" * 32)
-    validate_inputs()
-    filenames = find_all_tif_images()
+    logger.info("\n" + "=" * 32 + "\nStarting Stage 1: Well Segmentation\n" + "=" * 32)
+    validate_stage1_inputs()
+    filenames = find_all_cleaned_tif_images()
 
     sep = "\n\t"
-    logger.info(f"Found a total of {len(filenames)} tif files: \n\t{sep.join(str(x) for x in filenames)}")
+    logger.info(f"Found a total of {len(filenames)} cleaned tif files: \n\t{sep.join(str(x) for x in filenames)}")
 
     error_messages = []  # Log all errors and write to file at the end
     processing_results = []
@@ -81,9 +81,6 @@ def main():
             tif = load_image(filename)
 
             logger.debug(f"NUM_TIMESTEPS={tif.shape[0]}")
-
-            tif = remove_failed_photos(tif)
-            tif = remove_repeated_initial_frame_tif(tif)
 
             assert len(tif.shape) == 3
             for frame in tif:

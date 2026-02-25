@@ -155,3 +155,8 @@ def validate_inputs():
     assert INPUT_DIR.exists()
     assert len(list(INPUT_DIR.glob("*.tif"))) > 0
     assert len(list(INPUT_DIR.glob("*.tif"))) == len(set(INPUT_DIR.glob("*.tif")))
+
+
+def validate_stage1_inputs():
+    assert CLEANED_RAW_DATA_DIR.exists(), f"Cleaned raw data dir not found: {CLEANED_RAW_DATA_DIR}"
+    assert len(list(CLEANED_RAW_DATA_DIR.glob("*.tif"))) > 0, "No cleaned TIF files found"
