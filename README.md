@@ -64,10 +64,9 @@ Corrections are applied in this order:
 1. **Remove warmup pair** — strips frames 0–1 (TIF only).
 2. **Remove black frame pairs** — removes pre-measurement trigger pairs from TIF only; removes mid-experiment half-black pairs from both TIF and CSV.
 3. **Remove duplicate initial frame pair** — safety net for a rare double-warmup edge case.
-4. **Apply manual corrections** — hardcoded removals for 32 known-problematic plates (`error_correction/manual_corrections.py`). Target rows are matched by timestamp so index drift from earlier steps is handled correctly.
-5. **Remove spurious frames** — automated timestamp-based detection removes any remaining extra frame pairs.
-6. **Validate** — asserts frame count, TIF/CSV alignment, no black frames, monotone timestamps, and interval consistency. Raises immediately on failure.
-7. **Save** cleaned TIF + CSV to `output/cleaned_raw_data/`.
+4. **Remove spurious frames** — automated timestamp-based detection removes any remaining extra frame pairs.
+5. **Validate** — asserts frame count, TIF/CSV alignment, no black frames, monotone timestamps, and interval consistency. Raises immediately on failure.
+6. **Save** cleaned TIF + CSV to `output/cleaned_raw_data/`.
 
 ### Valid post-correction frame counts
 
@@ -96,19 +95,9 @@ Three plates are exempt from timestamp validation (frame count is still checked)
 
 Any future plate with similar issues must be added to this list explicitly; it will otherwise fail validation.
 
-### Adding a new manual correction
-
-If a new plate has a spurious frame that the automated step misses, add an entry to
-`get_filename_to_erroneous_rows()` in `error_correction/manual_corrections.py`:
-
-```python
-'YYYYMMDD_N-MX_regime': [row_index, ...],   # 0-based raw CSV row indices
-```
-
-
 ## Stage 1 — Well segmentation
 
-Segments each frame of each cleaned TIF into individual wells using the `segment-multiwell-plate` library.
+Reads cleaned TIFs from `output/cleaned_raw_data/` and segments each frame into individual wells using the `segment-multiwell-plate` library.
 
 ```bash
 python -m chlamy_impi.well_segmentation_preprocessing.main
@@ -145,6 +134,14 @@ streamlit run chlamy_impi/interactive.demo.py
 
 ## Running tests
 
+Unit tests (fast, no real data required):
+
 ```bash
-python -m unittest discover tests
+python -m pytest tests/ --ignore=tests/test_well_segmentation_integration.py --ignore=tests/test_rotation_correction.py
+```
+
+Integration tests (require Stage 0 output in `output/cleaned_raw_data/`):
+
+```bash
+python -m pytest tests/test_well_segmentation_integration.py tests/test_rotation_correction.py
 ```
