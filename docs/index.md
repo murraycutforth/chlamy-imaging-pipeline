@@ -21,7 +21,7 @@ This report documents the Chlamy-IMPI data processing pipeline, which extracts p
 |---|---|
 | Raw TIF/CSV pairs processed | **350** |
 | Plates passing error correction | **350 / 350** (100%) |
-| Unique plate IDs (genetic backgrounds) | **48** |
+| Unique plate IDs | **48** |
 | Light regimes | **8** |
 | Total wells in database | **134,112** |
 | Non-empty wells (valid signal) | **126,502** (94.3%) |
