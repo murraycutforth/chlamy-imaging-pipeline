@@ -11,12 +11,12 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
-from chlamy_impi.database_creation.main import (
+from chlamy_impi.database_creation.shared import (
     get_npy_and_csv_filenames,
     prepare_img_array_and_df,
 )
 
-MODULE = "chlamy_impi.database_creation.main"
+MODULE = "chlamy_impi.database_creation.shared"
 
 VALID_STEM = "20231206_7-M6_30s-30s"
 

@@ -19,7 +19,7 @@ import pandas as pd
 
 from chlamy_impi.database_creation.constants import get_possible_frame_numbers
 from chlamy_impi.database_creation.construct_identity_df import construct_identity_dataframe
-from chlamy_impi.database_creation.main import (
+from chlamy_impi.database_creation.shared import (
     construct_gene_description_dataframe,
     construct_mutations_dataframe,
     final_df_sanity_checks,
@@ -30,9 +30,12 @@ from chlamy_impi.database_creation.utils import (
     save_df_to_csv,
 )
 from chlamy_impi.paths import (
+    get_database_output_dir,
+    get_dated_csv_filename,
     get_plates_parquet_path,
     get_timeseries_parquet_path,
     get_wells_parquet_path,
+    find_previous_database_excluding_today,
 )
 
 logger = logging.getLogger(__name__)
@@ -154,9 +157,33 @@ def main():
     final_df_sanity_checks(total_df)
     logger.info("All sanity checks passed.")
 
+    # Capture previous database path before writing (excludes today's file)
+    prev_path = find_previous_database_excluding_today()
+
     logger.info("Writing database.csv...")
     save_df_to_csv(total_df)
     logger.info("Stage 2b complete — database.csv written.")
+
+    # Regression comparison against previous dated database
+    if prev_path is not None:
+        import datetime
+        from chlamy_impi.database_creation.database_comparison import (
+            compare_databases,
+            write_comparison_report,
+        )
+        try:
+            logger.info(f"Comparing against previous database: {prev_path.name}")
+            new_path = get_dated_csv_filename()
+            result = compare_databases(prev_path, new_path)
+            old_date = prev_path.stem.replace("database_", "")
+            new_date = str(datetime.date.today())
+            report_name = f"comparison_{old_date}_to_{new_date}.md"
+            report_path = get_database_output_dir() / report_name
+            write_comparison_report(result, prev_path, new_path, report_path)
+        except Exception as exc:
+            logger.warning(f"Regression comparison failed (non-fatal): {exc}")
+    else:
+        logger.info("No previous database found — skipping comparison.")
 
 
 if __name__ == "__main__":

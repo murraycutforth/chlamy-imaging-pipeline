@@ -22,7 +22,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from chlamy_impi.database_creation.constants import get_possible_frame_numbers
-from chlamy_impi.database_creation.main import (
+from chlamy_impi.database_creation.shared import (
     get_npy_and_csv_filenames,
     prepare_img_array_and_df,
 )
