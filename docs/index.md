@@ -21,7 +21,8 @@ This report documents the Chlamy-IMPI data processing pipeline, which extracts p
 |---|---|
 | Raw TIF/CSV pairs processed | **350** |
 | Plates passing error correction | **350 / 350** (100%) |
-| Unique plate IDs | **48** |
+| Unique plate IDs in database | **41** |
+| Unique plate IDs in experimental data | **48** (7 excluded: no identity mapping) |
 | Light regimes | **8** |
 | Total wells in database | **134,112** |
 | Non-empty wells (valid signal) | **126,502** (94.3%) |
@@ -235,7 +236,7 @@ All values are pixel-level averages over the masked region of each well.
 
 ![Fv/Fm by plate](assets/images/fvfm_by_plate.png)
 
-*Box plots of Fv/Fm per plate ID across all measurements. Most plates cluster around 0.6-0.65, which is typical for healthy Chlamydomonas. Plates with lower medians or wider spread may indicate experimental stress or genetic effects.*
+*Box plots of Fv/Fm per plate ID across all measurements.*
 
 ---
 
@@ -253,6 +254,53 @@ Each run creates a dated subdirectory containing:
 - `gene_descriptions.csv` -- summary of genetic annotations
 
 A canonical `database.csv` is also written for backwards compatibility.
+
+### Identity spreadsheet coverage
+
+The identity spreadsheet maps `(plate, well_id)` to mutant identifiers. Mismatches between the spreadsheet and the experimental data are logged as errors/warnings and result in data being silently excluded from the final database.
+
+**Plates in experimental data but not in the identity spreadsheet** (7 plates — excluded from database):
+
+| Plate |
+|---|
+| `34v1` |
+| `34v2` |
+| `34v3` |
+| `35` |
+| `35v1` |
+| `35v2` |
+| `35v3` |
+
+These plates have valid segmentation and parameter data (Stage 2a) but cannot be included without mutant identity information. The identity spreadsheet must be updated to include them before they appear in the database.
+
+**Plates in identity spreadsheet but not in experimental data** (1 plate):
+
+| Plate |
+|---|
+| `99v2` |
+
+No TIF/CSV data exists for plate `99v2`; it appears in the identity spreadsheet but was never imaged (or not yet processed).
+
+**Dropped (plate, well) combos** (117 total):
+
+117 non-blank wells across 12 plates exist in the experimental data but have no entry in the identity spreadsheet. They are silently dropped from the database during the identity merge. The per-plate breakdown is:
+
+| Plate | Dropped wells | Notable pattern |
+|---|---|---|
+| `20` | 4 | G12, K24, O23, O24 |
+| `21` | 16 | Scattered |
+| `22` | 14 | Scattered |
+| `23` | 17 | Scattered |
+| `24` | 11 | Contiguous block N14–N24 |
+| `30v1` | 1 | B01 |
+| `30v2` | 1 | K13 |
+| `30v3` | 1 | J13 |
+| `31v1` | 17 | B02, L23, L24, and contiguous block P11–P24 |
+| `31v2` | 17 | Scattered |
+| `31v3` | 17 | Scattered |
+| `99v3` | 1 | P24 |
+
+Plates 20–24 and 31v1–31v3 account for the majority of dropped wells. The contiguous gaps in plate `24` (N14–N24) and `31v1` (row P) indicate entire row segments were omitted from the spreadsheet rather than individual missing entries.
 
 ### Database versioning
 
@@ -305,6 +353,8 @@ The pipeline generates per-light-regime timeseries mosaics showing Y(II) and Y(N
 - **100% of raw plates** pass automated error correction (3 plates exempt from timestamp checks)
 - **94.3% of wells** have valid signal (mask area >= 3 pixels)
 - **0 regression failures** between consecutive pipeline runs
+- **7 plates excluded** from the database (in experimental data but missing from identity spreadsheet)
+- **117 wells dropped** across 12 plates (no identity entry)
 
 ### Tiny mask wells
 
@@ -333,8 +383,9 @@ Three plates have known camera clock issues (overnight interruption or DST rollb
 ### Recommendations
 
 1. **Plate `31v2-M2_20h_HL`** should be flagged for manual review due to very low signal
-2. Future DST-affected plates should be added to the exemption list in `error_correction/validation.py`
-3. The masking threshold (global min 3-sigma) uses the pixel-wise minimum over time, so borderline wells at plate edges where signal varies between frames are more likely to be excluded
+2. **Update the identity spreadsheet** to add entries for plates `34v1`, `34v2`, `34v3`, `35`, `35v1`, `35v2`, `35v3` (currently excluded from the database) and for the 117 dropped wells across plates 20–24, 30v1–30v3, 31v1–31v3, and 99v3 — see [Identity spreadsheet coverage](#identity-spreadsheet-coverage)
+3. Future DST-affected plates should be added to the exemption list in `error_correction/validation.py`
+4. The masking threshold (global min 3-sigma) uses the pixel-wise minimum over time, so borderline wells at plate edges where signal varies between frames are more likely to be excluded
 
 ---
 
