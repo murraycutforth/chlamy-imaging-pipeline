@@ -43,12 +43,24 @@ def _elapsed_hours(
     """Return elapsed-time matrix of shape (n_wells, len(val_cols)) in hours.
 
     Each y2_k / ynpq_k column maps to measurement_time_k.
-    Elapsed = measurement_time_k − measurement_time_0.  NaT → NaN.
+    Elapsed = measurement_time_k − measurement_time_0.  NaT / NaN → NaN.
+
+    Handles mixed-dtype DataFrames: the reindex in build_wide_experimental_df()
+    fills unused time steps as float64 NaN rather than NaT, so we compute
+    elapsed time column-by-column rather than with DataFrame.subtract().
     """
-    mt_df = subset[mt_cols]
-    t0 = mt_df.iloc[:, 0]
-    elapsed = mt_df.subtract(t0, axis=0)
-    elapsed_h = elapsed.apply(lambda col: col.dt.total_seconds() / 3600)
+    t0 = pd.to_datetime(subset[mt_cols[0]])
+
+    elapsed_cols = {}
+    for col in mt_cols:
+        s = subset[col]
+        if pd.api.types.is_datetime64_any_dtype(s):
+            elapsed_cols[col] = (pd.to_datetime(s) - t0).dt.total_seconds() / 3600.0
+        else:
+            # float64 all-NaN column (time step beyond this plate's length)
+            elapsed_cols[col] = pd.Series(np.nan, index=subset.index)
+
+    elapsed_h = pd.DataFrame(elapsed_cols, index=subset.index)
 
     mt_idx = {col: i for i, col in enumerate(mt_cols)}
     step_indices = [
@@ -99,8 +111,7 @@ def _draw_subplot(
         p50 = np.nanpercentile(vals, 50, axis=0)
         p75 = np.nanpercentile(vals, 75, axis=0)
         p95 = np.nanpercentile(vals, 95, axis=0)
-
-    t_med = np.nanmedian(time_h, axis=0)
+        t_med = np.nanmedian(time_h, axis=0)
     ok = np.isfinite(t_med)
     ax.fill_between(t_med[ok], p05[ok], p95[ok], color=color, alpha=0.12,
                     label="5–95th pct")
