@@ -3,6 +3,7 @@ Stage 2b (database_creation/main_v2.py).
 """
 
 import logging
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -77,9 +78,10 @@ def construct_mutations_dataframe() -> pd.DataFrame:
     return df
 
 
-def write_dataframe(df: pd.DataFrame, name: str):
-    """Write the dataframe to a csv file in the database output directory."""
-    output_dir = get_database_output_dir()
+def write_dataframe(df: pd.DataFrame, name: str, output_dir: Path = None):
+    """Write the dataframe to a csv file in the given directory (default: database output dir)."""
+    if output_dir is None:
+        output_dir = get_database_output_dir()
     if not output_dir.exists():
         output_dir.mkdir(parents=True)
     df.to_csv(output_dir / name)

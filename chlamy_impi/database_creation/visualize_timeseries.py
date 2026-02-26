@@ -111,13 +111,14 @@ def _draw_subplot(
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def plot_timeseries_mosaic(df: pd.DataFrame) -> None:
-    """Write timeseries_y2.png and timeseries_ynpq.png to the database output dir.
+def plot_timeseries_mosaic(df: pd.DataFrame, output_dir=None) -> None:
+    """Write timeseries_y2.png and timeseries_ynpq.png to output_dir (default: database output dir).
 
     One subplot per light regime; individual well traces plus population
     percentile bands (5–95th, IQR, median).
     """
-    output_dir = get_database_output_dir()
+    if output_dir is None:
+        output_dir = get_database_output_dir()
 
     y2_cols = _sorted_cols(df, "y2")
     ynpq_cols = _sorted_cols(df, "ynpq")

@@ -7,7 +7,7 @@ import logging
 import numpy as np
 import pandas as pd
 from chlamy_impi.database_creation.constants import get_possible_frame_numbers
-from chlamy_impi.paths import get_database_output_dir, get_csv_filename
+from chlamy_impi.paths import get_database_output_dir, get_csv_filename, get_dated_csv_filename
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +137,10 @@ def save_df_to_csv(df: pd.DataFrame):
     filename = get_csv_filename()
     df.to_csv(filename, index=False)
     logger.info(f'CSV file saved at: {filename}')
+
+    dated_filename = get_dated_csv_filename()
+    df.to_csv(dated_filename, index=False)
+    logger.info(f'Dated CSV file saved at: {dated_filename}')
 
 
 

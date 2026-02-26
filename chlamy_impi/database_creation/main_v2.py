@@ -32,6 +32,7 @@ from chlamy_impi.database_creation.utils import (
 from chlamy_impi.paths import (
     get_database_output_dir,
     get_dated_csv_filename,
+    get_dated_run_dir,
     get_plates_parquet_path,
     get_timeseries_parquet_path,
     get_wells_parquet_path,
@@ -137,6 +138,11 @@ def merge_identity_and_experimental_dfs(
 
 
 def main():
+    import datetime
+
+    run_dir = get_dated_run_dir()
+    logger.info(f"Stage 2b outputs → {run_dir}")
+
     mutations_df = construct_mutations_dataframe()
     logger.info(f"Mutations dataframe shape: {mutations_df.shape}")
 
@@ -145,7 +151,7 @@ def main():
 
     logger.info("Writing gene descriptions...")
     gene_descriptions = construct_gene_description_dataframe()
-    write_dataframe(gene_descriptions, "gene_descriptions.csv")
+    write_dataframe(gene_descriptions, "gene_descriptions.csv", output_dir=run_dir)
 
     exptl_data = build_wide_experimental_df()
     logger.info(f"Wide experimental dataframe shape: {exptl_data.shape}")
@@ -166,7 +172,6 @@ def main():
 
     # Regression comparison against previous dated database
     if prev_path is not None:
-        import datetime
         from chlamy_impi.database_creation.database_comparison import (
             compare_databases,
             write_comparison_report,
@@ -178,7 +183,7 @@ def main():
             old_date = prev_path.stem.replace("database_", "")
             new_date = str(datetime.date.today())
             report_name = f"comparison_{old_date}_to_{new_date}.md"
-            report_path = get_database_output_dir() / report_name
+            report_path = run_dir / report_name
             write_comparison_report(result, prev_path, new_path, report_path)
         except Exception as exc:
             logger.warning(f"Regression comparison failed (non-fatal): {exc}")
@@ -188,7 +193,7 @@ def main():
     logger.info("Generating timeseries visualisations...")
     try:
         from chlamy_impi.database_creation.visualize_timeseries import plot_timeseries_mosaic
-        plot_timeseries_mosaic(total_df)
+        plot_timeseries_mosaic(total_df, output_dir=run_dir)
     except Exception as exc:
         logger.warning(f"Timeseries visualisation failed (non-fatal): {exc}")
 

@@ -2,6 +2,8 @@
 that a path is needed, rather than hardcoding the path somewhere else.
 """
 
+import datetime
+import re
 from pathlib import Path
 import logging
 
@@ -132,6 +134,69 @@ def get_timeseries_parquet_path() -> Path:
 
 def get_csv_filename():
     return DATABASE_DIR / "database.csv"
+
+
+def get_dated_run_dir(date=None) -> Path:
+    """Returns e.g. output/database_creation/2026-02-26/, creating it if needed."""
+    if date is None:
+        date = datetime.date.today()
+    run_dir = DATABASE_DIR / str(date)
+    if not run_dir.exists():
+        run_dir.mkdir(parents=True)
+    return run_dir
+
+
+def get_dated_csv_filename(date=None) -> Path:
+    """Returns e.g. output/database_creation/2026-02-26/database_2026-02-26.csv"""
+    if date is None:
+        date = datetime.date.today()
+    return get_dated_run_dir(date) / f"database_{date}.csv"
+
+
+def find_previous_database() -> Path | None:
+    """Scan DATABASE_DIR for YYYY-MM-DD/ subdirs containing database_YYYY-MM-DD.csv; return most recent path."""
+    pattern = re.compile(r"^(\d{4}-\d{2}-\d{2})$")
+    candidates = []
+    if DATABASE_DIR.exists():
+        for d in DATABASE_DIR.iterdir():
+            if d.is_dir():
+                m = pattern.match(d.name)
+                if m:
+                    try:
+                        date = datetime.date.fromisoformat(m.group(1))
+                        csv_path = d / f"database_{date}.csv"
+                        if csv_path.exists():
+                            candidates.append((date, csv_path))
+                    except ValueError:
+                        pass
+    if not candidates:
+        return None
+    candidates.sort(key=lambda x: x[0])
+    return candidates[-1][1]
+
+
+def find_previous_database_excluding_today() -> Path | None:
+    """Like find_previous_database but excludes today's dated subdir (for pre-save calls)."""
+    today = datetime.date.today()
+    pattern = re.compile(r"^(\d{4}-\d{2}-\d{2})$")
+    candidates = []
+    if DATABASE_DIR.exists():
+        for d in DATABASE_DIR.iterdir():
+            if d.is_dir():
+                m = pattern.match(d.name)
+                if m:
+                    try:
+                        date = datetime.date.fromisoformat(m.group(1))
+                        if date != today:
+                            csv_path = d / f"database_{date}.csv"
+                            if csv_path.exists():
+                                candidates.append((date, csv_path))
+                    except ValueError:
+                        pass
+    if not candidates:
+        return None
+    candidates.sort(key=lambda x: x[0])
+    return candidates[-1][1]
 
 
 def get_well_segmentation_processing_results_df_filename():
