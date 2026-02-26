@@ -91,9 +91,9 @@ Corrections are applied in this order:
 
 Lower counts (82, 160, 162) are truncated experiments. Higher counts (90, 98, 178) are Phase II variants with additional measurements.
 
-### Known unfixable plates
+### Plates with timestamp anomalies
 
-Three plates are exempt from timestamp validation (frame count is still checked) due to confirmed data-collection faults. They are listed in `get_timestamp_check_exempt_plates()` in `error_correction/validation.py`:
+Three plates have known timestamp anomalies (camera clock issues) but **valid image data and correct frame counts**. They are included in the final database. They are exempt from timestamp monotonicity and interval-consistency checks but still subject to all other validation. They are listed in `get_timestamp_check_exempt_plates()` in `error_correction/validation.py`:
 
 | Plate | Reason |
 |---|---|
