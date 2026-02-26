@@ -31,7 +31,7 @@ from pathlib import Path
 import numpy as np
 
 from chlamy_impi.lib.mask_functions import (
-    compute_threshold_mask,
+    compute_threshold_mask_global,
     compute_threshold_mask_per_timestep,
     MIN_MASK_PIXELS,
 )
@@ -49,7 +49,7 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 METHODS = {
     "global_min_3s": {
-        "fn": lambda arr: compute_threshold_mask(arr, num_std=3, time_reduction_fn=np.min),
+        "fn": lambda arr: compute_threshold_mask_global(arr, num_std=3, time_reduction_fn=np.min),
         "label": "Global min 3σ",
         "description": (
             "Baseline. One dark and one light threshold are derived from the blank "
@@ -58,7 +58,7 @@ METHODS = {
         ),
     },
     "global_mean_3s": {
-        "fn": lambda arr: compute_threshold_mask(arr, num_std=3, time_reduction_fn=np.mean),
+        "fn": lambda arr: compute_threshold_mask_global(arr, num_std=3, time_reduction_fn=np.mean),
         "label": "Global mean 3σ",
         "description": (
             "Same global thresholds as baseline, but uses the *mean* across time "
@@ -67,7 +67,7 @@ METHODS = {
         ),
     },
     "global_min_5s": {
-        "fn": lambda arr: compute_threshold_mask(arr, num_std=5, time_reduction_fn=np.min),
+        "fn": lambda arr: compute_threshold_mask_global(arr, num_std=5, time_reduction_fn=np.min),
         "label": "Global min 5σ",
         "description": (
             "Global threshold raised to 5σ above the blank mean. Otherwise identical "

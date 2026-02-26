@@ -9,7 +9,7 @@ from skimage import filters
 from tqdm import tqdm
 
 from chlamy_impi.lib.fv_fm_functions import compute_all_fv_fm
-from chlamy_impi.lib.mask_functions import compute_threshold_mask, count_empty_wells, average_mask_area, \
+from chlamy_impi.lib.mask_functions import compute_threshold_mask_global, count_empty_wells, average_mask_area, \
     count_overlapping_masks
 
 logger = logging.getLogger(__name__)
@@ -66,12 +66,12 @@ def main():
     # Test min reduction
 
     #mask_fns = [
-    #    partial(compute_threshold_mask, num_std=0, use_opening=False, time_reduction_fn=np.min),
-    #    partial(compute_threshold_mask, num_std=1, use_opening=False, time_reduction_fn=np.min),
-    #    partial(compute_threshold_mask, num_std=2, use_opening=False, time_reduction_fn=np.min),
-    #    partial(compute_threshold_mask, num_std=3, use_opening=False, time_reduction_fn=np.min),
-    #    partial(compute_threshold_mask, num_std=4, use_opening=False, time_reduction_fn=np.min),
-    #    partial(compute_threshold_mask, num_std=5, use_opening=False, time_reduction_fn=np.min),
+    #    partial(compute_threshold_mask_global, num_std=0, use_opening=False, time_reduction_fn=np.min),
+    #    partial(compute_threshold_mask_global, num_std=1, use_opening=False, time_reduction_fn=np.min),
+    #    partial(compute_threshold_mask_global, num_std=2, use_opening=False, time_reduction_fn=np.min),
+    #    partial(compute_threshold_mask_global, num_std=3, use_opening=False, time_reduction_fn=np.min),
+    #    partial(compute_threshold_mask_global, num_std=4, use_opening=False, time_reduction_fn=np.min),
+    #    partial(compute_threshold_mask_global, num_std=5, use_opening=False, time_reduction_fn=np.min),
     #]
 
     #mask_labels = [
@@ -93,12 +93,12 @@ def main():
     ## Test mean reduction
 
     #mask_fns = [
-    #    partial(compute_threshold_mask, num_std=0, use_opening=False, time_reduction_fn=np.mean),
-    #    partial(compute_threshold_mask, num_std=1, use_opening=False, time_reduction_fn=np.mean),
-    #    partial(compute_threshold_mask, num_std=2, use_opening=False, time_reduction_fn=np.mean),
-    #    partial(compute_threshold_mask, num_std=3, use_opening=False, time_reduction_fn=np.mean),
-    #    partial(compute_threshold_mask, num_std=4, use_opening=False, time_reduction_fn=np.mean),
-    #    partial(compute_threshold_mask, num_std=5, use_opening=False, time_reduction_fn=np.mean),
+    #    partial(compute_threshold_mask_global, num_std=0, use_opening=False, time_reduction_fn=np.mean),
+    #    partial(compute_threshold_mask_global, num_std=1, use_opening=False, time_reduction_fn=np.mean),
+    #    partial(compute_threshold_mask_global, num_std=2, use_opening=False, time_reduction_fn=np.mean),
+    #    partial(compute_threshold_mask_global, num_std=3, use_opening=False, time_reduction_fn=np.mean),
+    #    partial(compute_threshold_mask_global, num_std=4, use_opening=False, time_reduction_fn=np.mean),
+    #    partial(compute_threshold_mask_global, num_std=5, use_opening=False, time_reduction_fn=np.mean),
     #]
 
     #mask_labels = [
@@ -120,12 +120,12 @@ def main():
     # Test opening
 
     mask_fns = [
-        partial(compute_threshold_mask, num_std=0, use_opening=True, time_reduction_fn=np.min),
-        partial(compute_threshold_mask, num_std=1, use_opening=True, time_reduction_fn=np.min),
-        partial(compute_threshold_mask, num_std=2, use_opening=True, time_reduction_fn=np.min),
-        partial(compute_threshold_mask, num_std=3, use_opening=True, time_reduction_fn=np.min),
-        partial(compute_threshold_mask, num_std=4, use_opening=True, time_reduction_fn=np.min),
-        partial(compute_threshold_mask, num_std=5, use_opening=True, time_reduction_fn=np.min),
+        partial(compute_threshold_mask_global, num_std=0, use_opening=True, time_reduction_fn=np.min),
+        partial(compute_threshold_mask_global, num_std=1, use_opening=True, time_reduction_fn=np.min),
+        partial(compute_threshold_mask_global, num_std=2, use_opening=True, time_reduction_fn=np.min),
+        partial(compute_threshold_mask_global, num_std=3, use_opening=True, time_reduction_fn=np.min),
+        partial(compute_threshold_mask_global, num_std=4, use_opening=True, time_reduction_fn=np.min),
+        partial(compute_threshold_mask_global, num_std=5, use_opening=True, time_reduction_fn=np.min),
     ]
 
     mask_labels = [

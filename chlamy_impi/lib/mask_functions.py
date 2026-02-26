@@ -17,25 +17,74 @@ MIN_MASK_PIXELS = 3
 
 def compute_threshold_mask(
     img_arr: np.array,
+    use_opening: bool = False,
+    return_thresholds: bool = False,
+) -> np.array:
+    """
+    Primary pipeline mask function.
+
+    Uses per-timestep intersection at 5σ (see compute_threshold_mask_per_timestep).
+    Any non-empty well whose mask contains fewer than MIN_MASK_PIXELS pixels is
+    zeroed out and treated as empty, so downstream statistics are not dominated
+    by 1–2 shot-noise pixels.
+
+    Input:
+        img_arr: 5D numpy array of shape (num_rows, num_columns, num_timepoints, height, width)
+        use_opening: whether to apply morphological opening to the raw mask
+        return_thresholds: if True, also return (dark_threshold_t0, light_threshold_t0)
+                           from the initial measurement pair
+
+    Output:
+        mask_arr: 4D numpy array of shape (num_rows, num_columns, height, width)
+    """
+    result = compute_threshold_mask_per_timestep(
+        img_arr, num_std=5, use_opening=use_opening, return_thresholds=return_thresholds
+    )
+    if return_thresholds:
+        mask, thresholds = result
+    else:
+        mask = result
+
+    Ni, Nj = mask.shape[:2]
+    sizes = mask.reshape(Ni, Nj, -1).sum(axis=-1)
+    for i, j in itertools.product(range(Ni), range(Nj)):
+        sz = int(sizes[i, j])
+        if 0 < sz < MIN_MASK_PIXELS:
+            logger.warning(
+                f"Well ({i},{j}) has {sz} masked pixel(s) below "
+                f"MIN_MASK_PIXELS={MIN_MASK_PIXELS}; treating as empty"
+            )
+            mask[i, j] = False
+
+    if return_thresholds:
+        return mask, thresholds
+    else:
+        return mask
+
+
+# ---------------------------------------------------------------------------
+# Named mask variants (used by the comparison script)
+# ---------------------------------------------------------------------------
+
+def compute_threshold_mask_global(
+    img_arr: np.array,
     num_std: float = 3,
     use_opening: bool = False,
     time_reduction_fn: Callable = np.min,
     return_thresholds: bool = False,
 ) -> np.array:
     """
-    Computes a threshold-based mask array for each well in a plate.
-    One well has the same mask for all timepoints.
+    Global-threshold mask (original approach, kept for method comparison).
 
     A single dark threshold and light threshold are derived from the blank top-left
-    well across all dark (resp. light) frames pooled together.  Each pixel's minimum
-    value across all dark frames must exceed the dark threshold, and likewise for
-    light frames, for the pixel to be included.
+    well across all dark (resp. light) frames pooled together.  Each pixel's
+    time-reduced value (default: minimum) must exceed its threshold.
 
     Input:
         img_arr: 5D numpy array of shape (num_rows, num_columns, num_timepoints, height, width)
-        num_std: number of standard deviations above the blank mean to use as threshold
+        num_std: standard deviations above the blank mean to use as threshold
         use_opening: whether to apply morphological opening to the final mask
-        time_reduction_fn: function used to reduce the time axis (default np.min)
+        time_reduction_fn: function used to collapse the time axis (default np.min)
         return_thresholds: if True, also return (dark_threshold, light_threshold)
 
     Output:
@@ -54,12 +103,8 @@ def compute_threshold_mask(
     dark_imgs_alltime = time_reduction_fn(img_arr[:, :, dark_idxs], axis=2)
     light_imgs_alltime = time_reduction_fn(img_arr[:, :, light_idxs], axis=2)
 
-    assert len(dark_imgs_alltime.shape) == 4
-    assert len(light_imgs_alltime.shape) == 4
-    assert dark_imgs_alltime.shape[2] == crop_dims[0]
-    assert dark_imgs_alltime.shape[3] == crop_dims[1]
-    assert light_imgs_alltime.shape[2] == crop_dims[0]
-    assert light_imgs_alltime.shape[3] == crop_dims[1]
+    assert dark_imgs_alltime.shape[2:] == crop_dims
+    assert light_imgs_alltime.shape[2:] == crop_dims
 
     dark_mask = dark_imgs_alltime > dark_threshold
     light_mask = light_imgs_alltime > light_threshold
@@ -73,11 +118,6 @@ def compute_threshold_mask(
         return total_mask, (dark_threshold, light_threshold)
     else:
         return total_mask
-
-
-# ---------------------------------------------------------------------------
-# Alternative mask variant: per-timestep intersection
-# ---------------------------------------------------------------------------
 
 def compute_threshold_mask_per_timestep(
     img_arr: np.array,
