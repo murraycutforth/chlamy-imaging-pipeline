@@ -78,8 +78,7 @@ def main():
     validate_stage1_inputs()
     filenames = find_all_cleaned_tif_images()
 
-    sep = "\n\t"
-    logger.info(f"Found a total of {len(filenames)} cleaned tif files: \n\t{sep.join(str(x) for x in filenames)}")
+    logger.info(f"Found {len(filenames)} cleaned TIF file(s)")
 
     error_messages = []  # Log all errors and write to file at the end
     processing_results = []

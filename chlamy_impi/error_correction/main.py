@@ -108,15 +108,22 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     errors: dict[str, str] = {}
+    n_skipped = 0
 
     for tif_path, csv_path in tif_csv_pairs:
+        if (output_dir / tif_path.name).exists():
+            logger.debug(f"Skipping {tif_path.stem}: cleaned output already exists")
+            n_skipped += 1
+            continue
         try:
             correct_plate(tif_path, csv_path, output_dir)
         except Exception as exc:
             logger.error(f"FAILED {tif_path.stem}: {exc}")
             errors[tif_path.stem] = str(exc)
 
-    _print_summary(len(tif_csv_pairs), errors)
+    if n_skipped:
+        logger.info(f"Skipped {n_skipped} plate(s) with existing cleaned output")
+    _print_summary(len(tif_csv_pairs) - n_skipped, errors)
 
     if errors:
         raise SystemExit(f"ERROR: {len(errors)} plate(s) failed correction")

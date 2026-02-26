@@ -161,8 +161,19 @@ def process_plate(filename_npy, filename_meta):
     return plate_row, wells_df, ts_df, mask_array, n_below_threshold
 
 
+def _plate_cache_paths(name: str, cache_dir) -> tuple:
+    """Return (plate_path, wells_path, ts_path) for a plate's per-plate cache."""
+    return (
+        cache_dir / f"{name}_plate.parquet",
+        cache_dir / f"{name}_wells.parquet",
+        cache_dir / f"{name}_ts.parquet",
+    )
+
+
 def main():
-    get_image_processing_output_dir()  # ensure output dir exists
+    output_dir = get_image_processing_output_dir()
+    cache_dir = output_dir / "plate_cache"
+    cache_dir.mkdir(exist_ok=True)
 
     filenames_meta, filenames_npy = get_npy_and_csv_filenames()
 
@@ -171,11 +182,12 @@ def main():
         filenames_meta = filenames_meta[:5]
         logger.info(f"DEV_MODE: processing only {len(filenames_npy)} files")
 
-    plates_rows = []
+    plates_dfs = []
     wells_dfs = []
     ts_dfs = []
     failed_files = []
 
+    n_cached = 0
     n_below_threshold_total = 0
     n_empty_wells_total = 0
 
@@ -190,18 +202,36 @@ def main():
             total=len(filenames_npy),
             desc="Stage 2a",
         ):
+            name = filename_npy.stem
+            c_plate, c_wells, c_ts = _plate_cache_paths(name, cache_dir)
+
+            if c_plate.exists() and c_wells.exists() and c_ts.exists():
+                logger.debug(f"Loading {name} from cache")
+                plates_dfs.append(pd.read_parquet(c_plate))
+                w = pd.read_parquet(c_wells)
+                wells_dfs.append(w)
+                ts_dfs.append(pd.read_parquet(c_ts))
+                n_empty_wells_total += int((w["mask_area"] == 0).sum())
+                n_cached += 1
+                continue
+
             try:
                 plate_row, wells_df, ts_df, mask_array, n_below_threshold = process_plate(
                     filename_npy, filename_meta
                 )
-                plates_rows.append(plate_row)
+
+                # Write per-plate cache
+                pd.DataFrame([plate_row]).to_parquet(c_plate, index=False)
+                wells_df.to_parquet(c_wells, index=False)
+                ts_df.to_parquet(c_ts, index=False)
+
+                plates_dfs.append(pd.read_parquet(c_plate))
                 wells_dfs.append(wells_df)
                 ts_dfs.append(ts_df)
 
                 n_below_threshold_total += n_below_threshold
                 n_empty_wells_total += int((wells_df["mask_area"] == 0).sum())
 
-                name = filename_npy.stem
                 Ni, Nj = mask_array.shape[:2]
                 mask_area_2d = wells_df["mask_area"].values.reshape(Ni, Nj)
                 mosaic_path = mask_mosaic_path(name)
@@ -212,14 +242,14 @@ def main():
                     visualise_mask_heatmap(mask_area_2d, name, heatmap_path)
             except Exception as e:
                 if IGNORE_ERRORS:
-                    logger.error(f"Error processing {filename_npy.stem}: {e}")
-                    failed_files.append({"filename": filename_npy.stem, "error": str(e)})
+                    logger.error(f"Error processing {name}: {e}")
+                    failed_files.append({"filename": name, "error": str(e)})
                 else:
                     raise
     finally:
         mask_logger.setLevel(logging.NOTSET)
 
-    plates_df = pd.DataFrame(plates_rows)
+    plates_df = pd.concat(plates_dfs, ignore_index=True)
     wells_df = pd.concat(wells_dfs, ignore_index=True)
     ts_df = pd.concat(ts_dfs, ignore_index=True)
 
@@ -235,10 +265,12 @@ def main():
 
     logger.info("=" * 60)
     logger.info("Stage 2a complete — parquets written to output/image_processing/")
-    logger.info(f"  Plates processed:                    {n_plates}")
+    logger.info(f"  Plates loaded from cache:            {n_cached}")
+    logger.info(f"  Plates processed this run:           {n_plates - n_cached}")
+    logger.info(f"  Total plates:                        {n_plates}")
     logger.info(f"  Total wells:                         {n_wells}")
     logger.info(f"  Empty wells (mask_area = 0):         {n_empty_wells_total}")
-    logger.info(f"  Wells zeroed (< {MIN_MASK_PIXELS} masked pixels):        {n_below_threshold_total}")
+    logger.info(f"  Wells zeroed (< {MIN_MASK_PIXELS} masked pixels, new plates only): {n_below_threshold_total}")
     logger.info(
         f"  Y(II):  mean={y2_vals.mean():.4f}  std={y2_vals.std():.4f}"
         f"  min={y2_vals.min():.4f}  max={y2_vals.max():.4f}"
