@@ -7,9 +7,13 @@ from skimage.morphology import binary_opening
 
 logger = logging.getLogger(__name__)
 
+# Minimum number of masked pixels considered meaningful for a non-empty well
+MIN_MASK_PIXELS = 3
 
-# The following group of functions are all possible ways to generate an array of masks, given an image array
 
+# ---------------------------------------------------------------------------
+# Primary mask function (used by the pipeline)
+# ---------------------------------------------------------------------------
 
 def compute_threshold_mask(
     img_arr: np.array,
@@ -22,12 +26,17 @@ def compute_threshold_mask(
     Computes a threshold-based mask array for each well in a plate.
     One well has the same mask for all timepoints.
 
+    A single dark threshold and light threshold are derived from the blank top-left
+    well across all dark (resp. light) frames pooled together.  Each pixel's minimum
+    value across all dark frames must exceed the dark threshold, and likewise for
+    light frames, for the pixel to be included.
+
     Input:
         img_arr: 5D numpy array of shape (num_rows, num_columns, num_timepoints, height, width)
-        num_std: number of standard deviations above the mean to use as the threshold
-        use_opening: whether to perform a morphological opening operation on the mask
-        time_reduction_fn: function to reduce the time dimension to a single image
-        return_threshold: whether to return the threshold value
+        num_std: number of standard deviations above the blank mean to use as threshold
+        use_opening: whether to apply morphological opening to the final mask
+        time_reduction_fn: function used to reduce the time axis (default np.min)
+        return_thresholds: if True, also return (dark_threshold, light_threshold)
 
     Output:
         mask_arr: 4D numpy array of shape (num_rows, num_columns, height, width)
@@ -62,6 +71,76 @@ def compute_threshold_mask(
 
     if return_thresholds:
         return total_mask, (dark_threshold, light_threshold)
+    else:
+        return total_mask
+
+
+# ---------------------------------------------------------------------------
+# Alternative mask variant: per-timestep intersection
+# ---------------------------------------------------------------------------
+
+def compute_threshold_mask_per_timestep(
+    img_arr: np.array,
+    num_std: float = 5,
+    use_opening: bool = False,
+    return_thresholds: bool = False,
+) -> np.array:
+    """
+    Per-timestep intersection mask.
+
+    For each timestep pair (dark frame t, light frame t) a threshold is computed
+    independently from the blank top-left well for *that specific frame*.  A pixel
+    must exceed its per-frame threshold in every single timestep pair to be included
+    in the (constant) mask.
+
+    This prevents pixels whose initial Fm is close to background — which would blow
+    up the Y(NPQ) and Fv/Fm denominators — from entering the mask even when they
+    have high fluorescence at later timepoints.
+
+    Input:
+        img_arr: 5D numpy array of shape (num_rows, num_columns, num_timepoints, height, width)
+        num_std: standard deviations above the per-frame blank mean (default 5;
+                 per-frame calibration requires a higher value than the pooled-frame
+                 global-threshold default of 3 to achieve comparable selectivity)
+        use_opening: whether to apply morphological opening to the final mask
+        return_thresholds: if True, also return (dark_threshold_t0, light_threshold_t0)
+                           from the initial measurement pair
+
+    Output:
+        mask_arr: 4D numpy array of shape (num_rows, num_columns, height, width)
+    """
+    assert len(img_arr.shape) == 5
+    Ni, Nj, num_frames, h, w = img_arr.shape
+    assert num_frames % 2 == 0, f"Expected even frame count, got {num_frames}"
+
+    dark_idxs = range(0, num_frames, 2)
+    light_idxs = range(1, num_frames, 2)
+
+    assert np.mean(img_arr[:, :, list(light_idxs)]) > np.mean(img_arr[:, :, list(dark_idxs)]), \
+        "Light frames are not brighter than dark frames on average"
+
+    total_mask = np.ones((Ni, Nj, h, w), dtype=bool)
+    t0_dark_threshold = None
+    t0_light_threshold = None
+
+    for t, (td, tl) in enumerate(zip(dark_idxs, light_idxs)):
+        dark_threshold = _compute_threshold(img_arr[:, :, [td], :, :], num_std)
+        light_threshold = _compute_threshold(img_arr[:, :, [tl], :, :], num_std)
+
+        pair_mask = (img_arr[:, :, td, :, :] > dark_threshold) & \
+                    (img_arr[:, :, tl, :, :] > light_threshold)
+        total_mask &= pair_mask
+
+        if t == 0:
+            t0_dark_threshold = dark_threshold
+            t0_light_threshold = light_threshold
+
+    if use_opening:
+        for i, j in itertools.product(range(Ni), range(Nj)):
+            total_mask[i, j] = binary_opening(total_mask[i, j])
+
+    if return_thresholds:
+        return total_mask, (t0_dark_threshold, t0_light_threshold)
     else:
         return total_mask
 
