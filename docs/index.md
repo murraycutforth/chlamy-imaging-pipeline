@@ -308,15 +308,15 @@ The pipeline generates per-light-regime timeseries mosaics showing Y(II) and Y(N
 
 ### Tiny mask wells
 
-239 wells (0.18% of total) across 88 plates have masks of only 1-2 pixels. These are zeroed out and treated as empty, as statistics from 1-2 pixels are meaningless.
+156 wells (0.12% of total) across 67 plates have masks of only 1-2 pixels. These are zeroed out and treated as empty, as statistics from 1-2 pixels are meaningless.
 
 Top outlier plates with many tiny-mask wells:
 
 | Plate | Tiny-mask wells | Empty wells | Healthy wells |
 |---|---|---|---|
-| `31v2-M2_20h_HL` | 30 | 221 | 133 |
-| `7-M1_1min-1min` | 24 | 92 | 268 |
-| `99-M2_20h_HL` | 24 | 36 | 324 |
+| `31v2-M2_20h_HL` | 55 | 92 | 237 |
+| `7-M1_1min-1min` | 6 | 46 | 332 |
+| `31v1-M5_2h-2h` | 4 | 21 | 359 |
 
 The top outlier (`31v2-M2_20h_HL`) is likely a plate-level failure rather than an algorithmic issue.
 
