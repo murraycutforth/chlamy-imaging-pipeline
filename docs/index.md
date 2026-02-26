@@ -162,14 +162,6 @@ Plate `99-M1_1min-1min` (control plate, 1 Dec 2023):
 
 *16x24 grid showing mean Fm (light) fluorescence per well. Bright wells contain algal colonies; dark wells are empty.*
 
-### Sample well mosaic -- problematic plate
-
-Plate `31v2-M2_20h_HL` (13 Aug 2024) -- a mostly-failed experiment:
-
-![Well mosaic - problem plate](assets/images/problem_well_mosaic.png)
-
-*Most wells show very weak or no signal, indicating plate-level failure (weak inoculation, contamination, or imaging artifact).*
-
 ---
 
 ## Stage 2a: Image Processing & Masking
@@ -199,11 +191,17 @@ This method was selected after comparing 5 candidate approaches (see [Masking Me
 
 *Heatmap of masked pixel count per well. Well-populated plates typically have 30-40 masked pixels per well (out of 441 total).*
 
-### Mask heatmap -- problematic plate
+### Mask mosaic -- plate with low cell viability
+
+![Mask mosaic - problem plate](assets/images/problem_mask_mosaic.png)
+
+*Binary masks for plate `31v2-M2_20h_HL`. The majority of wells contain no masked pixels, indicating that cell fluorescence did not exceed the background threshold.*
+
+### Mask heatmap -- plate with low cell viability
 
 ![Mask heatmap - problem plate](assets/images/problem_mask_heatmap.png)
 
-*Plate 31v2-M2: only 133 of 384 wells have masks of 3+ pixels. Most of the plate is empty or below threshold.*
+*Heatmap of masked pixel count per well for plate `31v2-M2_20h_HL`: only 133 of 384 wells have masks of ≥3 pixels. Plates with large numbers of empty wells are retained in the database; empty wells are recorded with NaN parameter values.*
 
 ### Masking method comparison
 
