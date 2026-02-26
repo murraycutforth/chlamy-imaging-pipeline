@@ -149,9 +149,51 @@ Key columns: `plate`, `measurement`, `start_date`, `i`, `j`, `well_id`, `fv_fm`,
 `measurement_time_0`…`measurement_time_177`, `mutant_ID`, `gene`, `confidence_level`.
 
 
-## Data analysis
+## Pipeline report (GitHub Pages)
 
-Coming soon.
+A human-readable report of the pipeline results is maintained in `docs/` and published via GitHub Pages. It covers the full pipeline architecture, sample visualisations (well mosaics, mask mosaics, timeseries), Fv/Fm distributions, and data quality notes.
+
+### Viewing the report
+
+The report is published at:
+```
+https://<org>.github.io/chlamy-imaging-pipeline/
+```
+(Enable GitHub Pages under repo Settings → Pages → source: `main` branch, `/docs` folder.)
+
+### Generating a new report version
+
+Run the full pipeline first (Stages 0–2b), then regenerate the report assets:
+
+```bash
+# 1. Run the full pipeline to update output/ with new data
+python -m chlamy_impi.error_correction.main
+python -m chlamy_impi.well_segmentation_preprocessing.main
+python -m chlamy_impi.image_processing.main
+python -m chlamy_impi.database_creation.main_v2
+
+# 2. Regenerate report images from the new pipeline outputs
+python scripts/generate_report_assets.py
+
+# 3. Commit the updated docs/ directory
+git add docs/
+git commit -m "Update pipeline report - YYYY-MM-DD"
+git push
+```
+
+The key files to update manually when significant pipeline changes are made:
+
+| File | What to update |
+|---|---|
+| `docs/_config.yml` | `report_version`, `report_date`, `pipeline_version` |
+| `docs/index.md` | Summary statistics tables, known issues, schema appendix |
+
+The timeseries PNGs (`timeseries_y2.png`, `timeseries_ynpq.png`) and the Fv/Fm plots are regenerated automatically by `scripts/generate_report_assets.py`. Sample well mosaics and mask images are copied from the latest pipeline output.
+
+### Report versioning convention
+
+- Increment `report_version` in `docs/_config.yml` when the report content changes significantly (new sections, new analysis, schema changes).
+- The `report_date` should always reflect the date of the most recent pipeline run used to generate the report assets.
 
 
 ## Streamlit interactive demo

@@ -29,6 +29,9 @@ python -m chlamy_impi.well_segmentation_preprocessing.main
 python -m chlamy_impi.image_processing.main
 python -m chlamy_impi.database_creation.main_v2
 
+# Regenerate GitHub Pages report assets (run after full pipeline)
+python scripts/generate_report_assets.py
+
 # Interactive Streamlit demo
 streamlit run chlamy_impi/interactive.demo.py
 ```
@@ -85,6 +88,34 @@ One row per plate × measurement × well. Key columns:
 - `ynpq_1`…`ynpq_177` — time-series NPQ
 - `measurement_time_0`…`measurement_time_177` — timestamps per time step
 - `mutant_ID`, `gene`, `confidence_level`, `description` — genetic identity from identity spreadsheet
+
+## GitHub Pages Report
+
+The `docs/` directory contains a Jekyll-based GitHub Pages report published at `https://<org>.github.io/chlamy-imaging-pipeline/`. It is intended for the PI and collaborators.
+
+### Report structure
+
+```
+docs/
+  _config.yml          — Jekyll config: report_version, report_date, pipeline_version
+  index.md             — Full report (single-page)
+  assets/images/       — PNGs embedded in the report
+```
+
+### Updating the report
+
+After running the full pipeline, regenerate assets and update the report:
+
+1. **Run `scripts/generate_report_assets.py`** — copies timeseries PNGs and sample mosaics from `output/` into `docs/assets/images/`, and regenerates the Fv/Fm distribution and per-plate boxplots.
+2. **Update `docs/_config.yml`** — bump `report_version` if content changed significantly; set `report_date` to today.
+3. **Update summary statistics in `docs/index.md`** — the tables in the Executive Summary and Experiments per light regime sections contain hardcoded numbers derived from the pipeline output; update these to match the new run.
+4. **Commit and push `docs/`** — GitHub Pages will redeploy automatically.
+
+### When to bump `report_version`
+
+- New data added (more plates, new plate IDs): bump patch (e.g. 1.0 → 1.1)
+- New pipeline stage or algorithm change: bump minor (e.g. 1.1 → 2.0)
+- New report section or major restructuring: bump minor
 
 ## Error Handling Patterns
 
