@@ -10,8 +10,6 @@ Chlamy-IMPI is an image processing and data analysis pipeline for studying photo
 
 ```bash
 pip install -r requirements.txt
-# or with Poetry:
-poetry install && poetry shell
 ```
 
 [machine dependent] environment may already exist at: /Users/murraycutforth/miniconda3/envs/chlamy/bin/python
@@ -20,48 +18,53 @@ poetry install && poetry shell
 
 ```bash
 # Run tests
-python -m unittest discover tests
+python -m pytest tests/
 
 # Run a single test file
-python -m unittest tests/test_fv_fm.py
+python -m pytest tests/test_fv_fm.py
 
-# Run the full pipeline (3 stages in order)
-python -m chlamy_impi.well_segmentation_preprocessing.main
+# Run the full pipeline (4 stages in order)
 python -m chlamy_impi.error_correction.main
-python -m chlamy_impi.database_creation.main
+python -m chlamy_impi.well_segmentation_preprocessing.main
+python -m chlamy_impi.image_processing.main
+python -m chlamy_impi.database_creation.main_v2
 
 # Interactive Streamlit demo
 streamlit run chlamy_impi/interactive.demo.py
-
-# Investigate metadata for manual error correction
-python -m chlamy_impi.database_creation.investigate_meta_df
 ```
 
 ## Pipeline Architecture
 
-The pipeline has 3 sequential stages. Each stage reads from a specific input directory and writes to an output directory defined in `chlamy_impi/paths.py`.
+The pipeline has 4 sequential stages. Each stage reads from a specific input directory and writes to an output directory defined in `chlamy_impi/paths.py`.
+
+**Stage 0 – Error Correction** (`error_correction/main.py`)
+- Input: raw `.tif` + `.csv` pairs in `data/chlamy/`
+- Strips warmup frames, removes black frame pairs, detects spurious frames via timestamps
+- Validates frame count, TIF/CSV alignment, monotone timestamps, and interval consistency
+- Output: cleaned `.tif` + `.csv` in `output/cleaned_raw_data/`
 
 **Stage 1 – Well Segmentation** (`well_segmentation_preprocessing/main.py`)
-- Input: `.tif` fluorescence images + `.csv` metadata in `data/chlamy/`
+- Input: cleaned `.tif` + `.csv` from `output/cleaned_raw_data/`
 - Uses the `segment-multiwell-plate` library to extract individual wells from 384-well plates
 - Output: `.npy` arrays of shape `(16, 24, num_frames, well_height, well_width)` in `output/well_segmentation_cache/`
 
-**Stage 1.5 – Error Correction** (`error_correction/main.py`)
-- Input: `.npy` arrays from Stage 1
-- Detects and removes spurious/duplicate frames using timestamp metadata
-- Output: corrected `.npy` arrays in `output/corrected_well_segmentation_cache/`
-- Note: Some plates require manual correction via `database_creation/manual_error_correction.py`
+**Stage 2a – Image Processing** (`image_processing/main.py`)
+- Input: `.npy` arrays from Stage 1 + cleaned `.csv` from Stage 0
+- Computes per-well photosynthetic parameters (Fv/Fm, Y(II), Y(NPQ)) using `lib/` modules
+- Output: `plates.parquet`, `wells.parquet`, `timeseries.parquet` in `output/image_processing/`
 
-**Stage 2 – Database Creation** (`database_creation/main.py`)
-- Input: corrected `.npy` arrays + identity spreadsheet `.xlsx` mapping wells to mutant strains
-- Computes per-well photosynthetic parameters using `lib/` modules
+**Stage 2b – Database Creation** (`database_creation/main_v2.py`)
+- Input: parquets from Stage 2a + identity spreadsheet `.xlsx` mapping wells to mutant strains
+- Pivots timeseries long→wide, merges with identity, runs sanity checks
 - Output: `database.parquet` + `database.csv` in `output/database_creation/`
 
 ## Key Files
 
 - **`chlamy_impi/paths.py`**: Central path configuration — all input/output directories. Edit here when changing data locations.
-- **`chlamy_impi/database_creation/constants.py`**: Hardcoded experimental parameters: valid frame counts `{84, 92, 100, 164, 172, 180}`, time regime intervals.
+- **`chlamy_impi/database_creation/constants.py`**: Hardcoded experimental parameters: valid frame counts per time regime, expected time intervals.
 - **`chlamy_impi/lib/`**: Core computation modules — `fv_fm_functions.py`, `y2_functions.py`, `npq_functions.py`, `mask_functions.py`.
+- **`chlamy_impi/image_processing/main.py`**: Stage 2a entry point — vectorised per-plate processing, writes parquets.
+- **`chlamy_impi/database_creation/main_v2.py`**: Stage 2b entry point — reads parquets, merges identity, writes database.csv.
 
 ## Photosynthetic Parameters
 
@@ -83,7 +86,6 @@ One row per plate × well × measurement set. Key columns:
 
 ## Error Handling Patterns
 
-- All stages write failed-plate info to `failed_files.csv` and per-plate error `.txt` files
-- `IGNORE_ERRORS` flag in pipeline scripts allows skipping problematic plates
-- Sanity checks are in `database_creation/database_sanity_checks.py`
+- Stage 2a collects per-plate failures in a list; continues on error when `IGNORE_ERRORS=True`
+- Final sanity checks are in `database_creation/database_sanity_checks.py`
 - Logging uses Python's `logging` module at DEBUG/INFO levels

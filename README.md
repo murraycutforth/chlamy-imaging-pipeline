@@ -31,7 +31,11 @@ data/chlamy/          (raw TIF + CSV)
       │    output/well_segmentation_cache/   (.npy arrays, shape 16×24×frames×H×W)
       │
       ▼
-[Stage 2]  python -m chlamy_impi.database_creation.main
+[Stage 2a] python -m chlamy_impi.image_processing.main
+      │    output/image_processing/   (plates.parquet, wells.parquet, timeseries.parquet)
+      │
+      ▼
+[Stage 2b] python -m chlamy_impi.database_creation.main_v2
            output/database_creation/database.parquet + database.csv
 ```
 
@@ -106,12 +110,26 @@ python -m chlamy_impi.well_segmentation_preprocessing.main
 Output: `.npy` arrays of shape `(16, 24, num_frames, H, W)` in `output/well_segmentation_cache/`.
 
 
-## Stage 2 — Database creation
+## Stage 2a — Image processing
 
-Computes per-well photosynthetic parameters and joins with the identity spreadsheet.
+Computes per-well photosynthetic parameters from the segmented `.npy` arrays and writes three normalised parquet files.
 
 ```bash
-python -m chlamy_impi.database_creation.main
+python -m chlamy_impi.image_processing.main
+```
+
+Output in `output/image_processing/`:
+- `plates.parquet` — one row per experiment (plate × measurement)
+- `wells.parquet` — one row per (plate × well), including Fv/Fm and mask area
+- `timeseries.parquet` — one row per (plate × well × time step), long format, containing Y(II) and Y(NPQ)
+
+
+## Stage 2b — Database creation
+
+Joins the Stage 2a parquets with the identity spreadsheet and writes the final database.
+
+```bash
+python -m chlamy_impi.database_creation.main_v2
 ```
 
 Output: `output/database_creation/database.parquet` and `database.csv`.

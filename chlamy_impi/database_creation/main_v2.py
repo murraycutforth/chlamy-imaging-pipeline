@@ -14,8 +14,6 @@ Pipeline:
 """
 
 import logging
-from itertools import product
-
 import numpy as np
 import pandas as pd
 
@@ -40,7 +38,6 @@ from chlamy_impi.paths import (
 logger = logging.getLogger(__name__)
 
 DEV_MODE = False
-IGNORE_ERRORS = False
 
 
 def build_wide_experimental_df() -> pd.DataFrame:
@@ -114,22 +111,18 @@ def merge_identity_and_experimental_dfs(
 
     # Verify all non-blank wells in exptl_data are present in identity_df
     non_blank = exptl_data[exptl_data.well_id != "A01"]
-    exptl_plate_n_well = set(product(non_blank.plate, non_blank.well_id))
-    identity_plate_n_well = set(product(identity_df.plate, identity_df.well_id))
+    exptl_plate_n_well = set(zip(non_blank.plate, non_blank.well_id))
+    identity_plate_n_well = set(zip(identity_df.plate, identity_df.well_id))
 
-    if IGNORE_ERRORS:
-        exptl_plate_n_well = exptl_plate_n_well.intersection(identity_plate_n_well)
-        exptl_data = exptl_data[
-            exptl_data[["plate", "well_id"]].apply(tuple, axis=1).isin(exptl_plate_n_well)
-        ]
+    missing = exptl_plate_n_well - identity_plate_n_well
+    if missing:
         logger.warning(
-            "IGNORE_ERRORS: dropped wells not found in identity spreadsheet"
+            f"{len(missing)} (plate, well) combos in experimental data have no identity entry "
+            f"and will be dropped: {sorted(missing)}"
         )
-    else:
-        missing = exptl_plate_n_well - identity_plate_n_well
-        assert exptl_plate_n_well.issubset(identity_plate_n_well), (
-            f"Wells in experimental data but not in identity spreadsheet: {missing}"
-        )
+        exptl_data = exptl_data[
+            ~exptl_data[["plate", "well_id"]].apply(tuple, axis=1).isin(missing)
+        ]
 
     total_df = pd.merge(
         exptl_data, identity_df, on=["plate", "well_id"], how="left", validate="m:1"

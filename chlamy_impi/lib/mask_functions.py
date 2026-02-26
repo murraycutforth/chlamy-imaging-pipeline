@@ -24,7 +24,9 @@ def compute_threshold_mask(
     """
     Primary pipeline mask function.
 
-    Uses per-timestep intersection at 5σ (see compute_threshold_mask_per_timestep).
+    Uses a global 3σ threshold derived from the blank top-left well, pooled across
+    all dark (resp. light) frames.  A pixel must exceed its threshold when measured
+    by the minimum-over-time dark/light images (see compute_threshold_mask_global).
     Any non-empty well whose mask contains fewer than MIN_MASK_PIXELS pixels is
     zeroed out and treated as empty, so downstream statistics are not dominated
     by 1–2 shot-noise pixels.
@@ -32,8 +34,7 @@ def compute_threshold_mask(
     Input:
         img_arr: 5D numpy array of shape (num_rows, num_columns, num_timepoints, height, width)
         use_opening: whether to apply morphological opening to the raw mask
-        return_thresholds: if True, also return (dark_threshold_t0, light_threshold_t0)
-                           from the initial measurement pair
+        return_thresholds: if True, also return (dark_threshold, light_threshold)
         return_n_below_threshold: if True, also return the count of wells that had
                                   1–(MIN_MASK_PIXELS-1) masked pixels and were zeroed out
 
@@ -41,8 +42,8 @@ def compute_threshold_mask(
         mask_arr: 4D numpy array of shape (num_rows, num_columns, height, width)
         Optionally followed by thresholds tuple and/or n_below_threshold count.
     """
-    result = compute_threshold_mask_per_timestep(
-        img_arr, num_std=5, use_opening=use_opening, return_thresholds=return_thresholds
+    result = compute_threshold_mask_global(
+        img_arr, num_std=3, use_opening=use_opening, return_thresholds=return_thresholds
     )
     if return_thresholds:
         mask, thresholds = result

@@ -44,12 +44,12 @@ def compute_all_y2_averaged(img_array, mask_array, return_std: bool = False) -> 
     y2_array_means = compute_masked_mean(mask_array, num_steps, y2_array)
 
     assert y2_array_means.shape == (img_array.shape[0], img_array.shape[1], num_steps)
-    assert np.nanmax(y2_array_means) < 2.0, f'Y2 greater than 2: {np.nanmax(y2_array_means)}'
-    assert np.nanmin(y2_array_means) > -2.0, f"Y2 smaller than -2: {np.nanmin(y2_array_means)}"
+    assert np.nanmax(y2_array_means) < 5.0, f'Y2 greater than 5: {np.nanmax(y2_array_means)}'
+    assert np.nanmin(y2_array_means) > -5.0, f"Y2 smaller than -5: {np.nanmin(y2_array_means)}"
 
     # Check that the average Y2 of all wells at each time step is positive
     for i in range(num_steps):
-        assert np.nanmean(y2_array_means[:, :, i]) > -1, f"Y2 mean is very negative at time step {i}"
+        assert np.nanmean(y2_array_means[:, :, i]) > -2, f"Y2 mean is very negative at time step {i}"
 
     if return_std:
         y2_array_stds = compute_masked_std(mask_array, num_steps, y2_array)

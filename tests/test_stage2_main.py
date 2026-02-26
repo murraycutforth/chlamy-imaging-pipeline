@@ -1,27 +1,18 @@
-"""Unit tests for database_creation/main.py
+"""Unit tests for database_creation/main.py (shared utilities)
 
 Tests cover:
 - get_npy_and_csv_filenames: basic discovery, filtering failed, missing CSV raises
 - prepare_img_array_and_df: loads array + Stage-0-format CSV correctly
-- construct_plate_info_df: returns expected columns, handles errors gracefully
-- construct_well_info_df: correct row count, y2_1 not NaN
-- merge_plate_and_well_info_dfs: produces well_id column, no NaN in key columns
 """
 
-import datetime
-import itertools
 from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
-import pandas as pd
 import pytest
 
 from chlamy_impi.database_creation.main import (
-    construct_plate_info_df,
-    construct_well_info_df,
     get_npy_and_csv_filenames,
-    merge_plate_and_well_info_dfs,
     prepare_img_array_and_df,
 )
 
@@ -54,14 +45,6 @@ def make_fake_img_array(ni=2, nj=3, n_frames=4, h=5, w=5):
             arr[ii, jj, 0::2, :, :] = 0.3  # dark frames
             arr[ii, jj, 1::2, :, :] = 0.7  # light frames
     return arr
-
-
-def make_fake_meta_df(n_rows=2):
-    """Return DataFrame matching Stage 0 CSV format (as loaded by load_csv)."""
-    return pd.DataFrame({
-        "Date": ["25.02.26"] * n_rows,
-        "Time": [f"{10 + i:02d}:00:00" for i in range(n_rows)],
-    })
 
 
 def write_fake_csv(path: Path, n_rows: int = 2) -> None:
@@ -160,138 +143,3 @@ class TestPrepareImgArrayAndDf:
         assert len(meta_df) == 2
         # Trailing empty column must be stripped by load_csv
         assert not any(c.startswith("Unnamed") for c in meta_df.columns)
-
-
-# ---------------------------------------------------------------------------
-# Tests: construct_plate_info_df
-# ---------------------------------------------------------------------------
-
-class TestConstructPlateInfoDf:
-
-    def _make_temp_plate(self, tmp_path, stem=VALID_STEM, n_frames=4, n_meta_rows=2):
-        """Create a .npy + .csv pair in tmp_path and return their paths."""
-        npy_path = tmp_path / f"{stem}.npy"
-        csv_path = tmp_path / f"{stem}.csv"
-        save_fake_npy(npy_path, ni=2, nj=3, n_frames=n_frames, h=5, w=5)
-        write_fake_csv(csv_path, n_rows=n_meta_rows)
-        return csv_path, npy_path
-
-    def test_returns_expected_columns(self, tmp_path):
-        csv_path, npy_path = self._make_temp_plate(tmp_path)
-
-        with patch(f"{MODULE}.get_npy_and_csv_filenames", return_value=([csv_path], [npy_path])):
-            df, failed = construct_plate_info_df()
-
-        expected_cols = {"plate", "measurement", "start_date", "light_regime",
-                         "dark_threshold", "light_threshold", "num_frames"}
-        assert expected_cols.issubset(set(df.columns))
-        assert len(failed) == 0
-        assert len(df) == 1
-
-    def test_handles_error_in_load(self, tmp_path):
-        bad_csv = tmp_path / "bad.csv"
-        bad_npy = tmp_path / f"{VALID_STEM}.npy"
-        bad_csv.touch()
-        good_stem = "20240101_8-M6_30s-30s"
-        good_csv, good_npy = self._make_temp_plate(tmp_path, stem=good_stem)
-
-        # Mock prepare_img_array_and_df to raise for the bad file
-        original_prepare = __import__(
-            "chlamy_impi.database_creation.main", fromlist=["prepare_img_array_and_df"]
-        ).prepare_img_array_and_df
-
-        call_count = {"n": 0}
-
-        def side_effect(meta, npy):
-            call_count["n"] += 1
-            if call_count["n"] == 1:
-                raise AssertionError("simulated load error")
-            return original_prepare(meta, npy)
-
-        with patch(f"{MODULE}.get_npy_and_csv_filenames",
-                   return_value=([bad_csv, good_csv], [bad_npy, good_npy])), \
-             patch(f"{MODULE}.prepare_img_array_and_df", side_effect=side_effect):
-            df, failed = construct_plate_info_df()
-
-        assert len(failed) == 1
-        assert len(df) == 1  # Only the good plate
-
-
-# ---------------------------------------------------------------------------
-# Tests: construct_well_info_df
-# ---------------------------------------------------------------------------
-
-class TestConstructWellInfoDf:
-
-    def _make_temp_plate(self, tmp_path, stem=VALID_STEM, ni=2, nj=3, n_frames=4, n_meta_rows=2):
-        npy_path = tmp_path / f"{stem}.npy"
-        csv_path = tmp_path / f"{stem}.csv"
-        save_fake_npy(npy_path, ni=ni, nj=nj, n_frames=n_frames, h=5, w=5)
-        write_fake_csv(csv_path, n_rows=n_meta_rows)
-        return csv_path, npy_path
-
-    def test_row_count(self, tmp_path):
-        ni, nj = 2, 3
-        csv_path, npy_path = self._make_temp_plate(tmp_path, ni=ni, nj=nj)
-
-        with patch(f"{MODULE}.get_npy_and_csv_filenames", return_value=([csv_path], [npy_path])):
-            df, failed = construct_well_info_df(failed_filenames=[])
-
-        assert len(df) == ni * nj
-        assert "y2_1" in df.columns
-        assert "ynpq_1" in df.columns
-
-    def test_y2_not_all_nan(self, tmp_path):
-        csv_path, npy_path = self._make_temp_plate(tmp_path)
-
-        with patch(f"{MODULE}.get_npy_and_csv_filenames", return_value=([csv_path], [npy_path])):
-            df, failed = construct_well_info_df(failed_filenames=[])
-
-        assert not df["y2_1"].isna().all(), "y2_1 should have at least some non-NaN values"
-
-
-# ---------------------------------------------------------------------------
-# Tests: merge_plate_and_well_info_dfs
-# ---------------------------------------------------------------------------
-
-class TestMergePlateAndWellInfoDfs:
-
-    def _make_full_plate_df(self):
-        return pd.DataFrame([{
-            "plate": "7",
-            "measurement": "M6",
-            "start_date": datetime.datetime(2023, 12, 6),
-            "light_regime": "30s-30s",
-            "dark_threshold": 0.1,
-            "light_threshold": 0.5,
-            "num_frames": 4,
-        }])
-
-    def _make_full_well_df(self):
-        """Create a 16×24 well DataFrame (384 rows) to satisfy the sanity check."""
-        rows = []
-        for i, j in itertools.product(range(16), range(24)):
-            rows.append({
-                "plate": "7",
-                "measurement": "M6",
-                "start_date": datetime.datetime(2023, 12, 6),
-                "i": i,
-                "j": j,
-                "fv_fm": 0.6,
-                "fv_fm_std": 0.05,
-                "mask_area": 10,
-            })
-        return pd.DataFrame(rows)
-
-    def test_produces_well_id_column(self):
-        plate_df = self._make_full_plate_df()
-        well_df = self._make_full_well_df()
-        merged = merge_plate_and_well_info_dfs(plate_df, well_df)
-        assert "well_id" in merged.columns
-
-    def test_no_nan_in_key_columns(self):
-        plate_df = self._make_full_plate_df()
-        well_df = self._make_full_well_df()
-        merged = merge_plate_and_well_info_dfs(plate_df, well_df)
-        for col in ("plate", "measurement", "start_date", "i", "j"):
-            assert merged[col].notna().all(), f"Column {col!r} has unexpected NaN values"

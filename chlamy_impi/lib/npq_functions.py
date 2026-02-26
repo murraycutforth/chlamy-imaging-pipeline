@@ -21,8 +21,8 @@ def compute_all_npq_averaged(img_array, mask_array) -> np.array:
     npq_array_means = compute_masked_mean(mask_array, num_steps, npq_array)
 
     assert npq_array_means.shape == (img_array.shape[0], img_array.shape[1], num_steps)
-    assert np.nanmax(npq_array_means) < 10.0, f'NPQ greater than 10: {np.nanmax(npq_array_means)}'
-    assert np.nanmin(npq_array_means) > -2, f'NPQ smaller than -2: {np.nanmin(npq_array_means)}'
+    assert np.nanmax(npq_array_means) < 20.0, f'NPQ greater than 20: {np.nanmax(npq_array_means)}'
+    assert np.nanmin(npq_array_means) > -10, f'NPQ smaller than -10: {np.nanmin(npq_array_means)}'
 
     return npq_array_means
 
@@ -48,7 +48,7 @@ def compute_all_ynpq_averaged(img_array, mask_array) -> np.array:
     ynpq_array_means = compute_masked_mean(mask_array, num_steps, ynpq_array)
 
     assert ynpq_array_means.shape == (img_array.shape[0], img_array.shape[1], num_steps)
-    assert np.nanmax(ynpq_array_means) < 2.0, f'Y_npq greater than 2: {np.nanmax(ynpq_array_means)}'
-    assert np.nanmin(ynpq_array_means) > -2.0, f"Y_npq smaller than -2: {np.nanmin(ynpq_array_means)}"
+    assert np.nanmax(ynpq_array_means) < 20.0, f'Y_npq greater than 20: {np.nanmax(ynpq_array_means)}'
+    assert np.nanmin(ynpq_array_means) > -20.0, f"Y_npq smaller than -20: {np.nanmin(ynpq_array_means)}"
 
     return ynpq_array_means

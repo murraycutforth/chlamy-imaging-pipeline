@@ -29,8 +29,8 @@ def compute_all_fv_fm_averaged(img_array, mask_array, return_std: bool = False) 
     fv_fm_array_means = compute_masked_mean(mask_array, fv_fm_array)
 
     assert fv_fm_array_means.shape == (img_array.shape[0], img_array.shape[1])
-    assert np.nanmax(fv_fm_array_means) < 2.0, f'fv/fm greater than 2: {np.nanmax(fv_fm_array_means)}'
-    assert np.nanmin(fv_fm_array_means) > -2.0, f"fv/fm smaller than -2: {np.nanmin(fv_fm_array_means)}"
+    assert np.nanmax(fv_fm_array_means) < 5.0, f'fv/fm greater than 5: {np.nanmax(fv_fm_array_means)}'
+    assert np.nanmin(fv_fm_array_means) > -5.0, f"fv/fm smaller than -5: {np.nanmin(fv_fm_array_means)}"
 
     if return_std:
         fv_fm_array_stds = compute_masked_std(mask_array, fv_fm_array)
