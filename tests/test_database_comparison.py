@@ -5,6 +5,7 @@ Tests cover:
   empty-well changes, well-level parameter diffs
 - find_previous_database / find_previous_database_excluding_today: path discovery
 - generate_comparison_report: markdown section headings
+- Integration test against real dated database files (skipped if absent)
 """
 
 import datetime
@@ -18,6 +19,49 @@ from chlamy_impi.database_creation.database_comparison import (
     generate_comparison_report,
     write_comparison_report,
 )
+
+# Real database files written by the pipeline; integration tests are skipped if absent.
+_DB_DIR = Path(__file__).parent.parent / "output" / "database_creation"
+_OLD_DB = _DB_DIR / "2026-02-25" / "database_2026-02-25.csv"
+_NEW_DB = _DB_DIR / "2026-02-26" / "database_2026-02-26.csv"
+
+
+# ---------------------------------------------------------------------------
+# Integration tests (require real pipeline output files)
+# ---------------------------------------------------------------------------
+
+@unittest.skipUnless(_OLD_DB.exists() and _NEW_DB.exists(), "Real database files not found")
+class TestRealDatabaseComparison(unittest.TestCase):
+    """Regression test against the two real dated databases.
+
+    Both files were generated from the same input data, so the comparison
+    must report zero parameter diffs.  This test was written to reproduce the
+    bug where identical databases showed ~17 k wells differing due to a
+    non-unique join key.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.result = compare_databases(_OLD_DB, _NEW_DB)
+
+    def test_no_param_diffs_for_identical_databases(self):
+        diffs = self.result["param_diffs"]
+        self.assertTrue(
+            diffs.empty,
+            f"Expected 0 wells differing between identical databases, "
+            f"got {len(diffs)} rows. First few:\n{diffs.head()}"
+        )
+
+    def test_row_counts_match(self):
+        self.assertEqual(self.result["old_rows"], self.result["new_rows"])
+
+    def test_no_plate_changes(self):
+        self.assertEqual(self.result["added_plates"], set())
+        self.assertEqual(self.result["removed_plates"], set())
+
+    def test_no_schema_changes(self):
+        self.assertEqual(self.result["schema_added"], set())
+        self.assertEqual(self.result["schema_removed"], set())
 
 
 # ---------------------------------------------------------------------------

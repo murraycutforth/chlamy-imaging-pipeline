@@ -13,7 +13,7 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-_WELL_KEY = ["plate", "measurement", "well_id"]
+_WELL_KEY = ["plate", "measurement", "start_date", "well_id"]
 _PARAM_COLS = ["fv_fm", "y2_1", "ynpq_1"]
 
 
@@ -34,8 +34,8 @@ def compare_databases(
         newly_populated             — list of (plate, well_id) tuples that became populated
         param_diffs                 — DataFrame of wells exceeding diff thresholds
     """
-    old_df = pd.read_csv(old_path)
-    new_df = pd.read_csv(new_path)
+    old_df = pd.read_csv(old_path, low_memory=False)
+    new_df = pd.read_csv(new_path, low_memory=False)
 
     result = {}
 
