@@ -12,8 +12,6 @@ Note: this repository is still under development, so things might break and thes
 pip install -r requirements.txt
 ```
 
-The conda environment on the lab Mac is at `/Users/murraycutforth/miniconda3/envs/chlamy/bin/python`.
-
 
 ## Pipeline overview
 
