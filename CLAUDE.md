@@ -38,7 +38,7 @@ streamlit run chlamy_impi/interactive.demo.py
 The pipeline has 4 sequential stages. Each stage reads from a specific input directory and writes to an output directory defined in `chlamy_impi/paths.py`.
 
 **Stage 0 – Error Correction** (`error_correction/main.py`)
-- Input: raw `.tif` + `.csv` pairs in `data/chlamy/`
+- Input: raw `.tif` + `.csv` pairs in `data/`
 - Strips warmup frames, removes black frame pairs, detects spurious frames via timestamps
 - Validates frame count, TIF/CSV alignment, monotone timestamps, and interval consistency
 - Output: cleaned `.tif` + `.csv` in `output/cleaned_raw_data/`
@@ -56,7 +56,7 @@ The pipeline has 4 sequential stages. Each stage reads from a specific input dir
 **Stage 2b – Database Creation** (`database_creation/main_v2.py`)
 - Input: parquets from Stage 2a + identity spreadsheet `.xlsx` mapping wells to mutant strains
 - Pivots timeseries long→wide, merges with identity, runs sanity checks
-- Output: `database.parquet` + `database.csv` in `output/database_creation/`
+- Output: `database.csv` (canonical) + dated run directory `output/database_creation/YYYY-MM-DD/` containing `database_YYYY-MM-DD.csv`, a regression comparison report, and timeseries visualisation PNGs
 
 ## Key Files
 
@@ -65,6 +65,8 @@ The pipeline has 4 sequential stages. Each stage reads from a specific input dir
 - **`chlamy_impi/lib/`**: Core computation modules — `fv_fm_functions.py`, `y2_functions.py`, `npq_functions.py`, `mask_functions.py`.
 - **`chlamy_impi/image_processing/main.py`**: Stage 2a entry point — vectorised per-plate processing, writes parquets.
 - **`chlamy_impi/database_creation/main_v2.py`**: Stage 2b entry point — reads parquets, merges identity, writes database.csv.
+- **`chlamy_impi/database_creation/shared.py`**: Shared utilities used by Stage 2b — `prepare_img_array_and_df`, `final_df_sanity_checks`, `write_dataframe`, etc.
+- **`chlamy_impi/database_creation/database_comparison.py`**: Regression comparison between two dated database CSVs — `compare_databases()`, `write_comparison_report()`.
 
 ## Photosynthetic Parameters
 
@@ -76,12 +78,12 @@ Each TIF image has 2 channels (F0 and Fm) per timepoint. Arrays use pixel-level 
 
 ## Database Schema
 
-One row per plate × well × measurement set. Key columns:
-- `plate`, `i`, `j`, `well_id` — plate/well location
+One row per plate × measurement × well. Key columns:
+- `plate`, `measurement`, `start_date`, `i`, `j`, `well_id` — plate/well location; unique key is `(plate, measurement, start_date, well_id)`
 - `fv_fm`, `fv_fm_std` — max yield
-- `y2_1`…`y2_81`, `y2_std_1`…`y2_std_81` — time-series quantum yield
-- `ynpq_1`…`ynpq_81` — time-series NPQ
-- `measurement_time_0`…`measurement_time_81` — Unix timestamps
+- `y2_1`…`y2_177`, `y2_std_1`…`y2_std_177` — time-series quantum yield (NaN-padded to the maximum possible time steps)
+- `ynpq_1`…`ynpq_177` — time-series NPQ
+- `measurement_time_0`…`measurement_time_177` — timestamps per time step
 - `mutant_ID`, `gene`, `confidence_level`, `description` — genetic identity from identity spreadsheet
 
 ## Error Handling Patterns

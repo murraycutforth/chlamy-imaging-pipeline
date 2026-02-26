@@ -17,10 +17,10 @@ The conda environment on the lab Mac is at `/Users/murraycutforth/miniconda3/env
 
 ## Pipeline overview
 
-The pipeline runs in four sequential stages. Place all raw `.tif` and `.csv` files in `data/chlamy/` before starting.
+The pipeline runs in four sequential stages. Place all raw `.tif` and `.csv` files in `data/` before starting.
 
 ```
-data/chlamy/          (raw TIF + CSV)
+data/                 (raw TIF + CSV)
       │
       ▼
 [Stage 0]  python -m chlamy_impi.error_correction.main
@@ -36,7 +36,11 @@ data/chlamy/          (raw TIF + CSV)
       │
       ▼
 [Stage 2b] python -m chlamy_impi.database_creation.main_v2
-           output/database_creation/database.parquet + database.csv
+           output/database_creation/database.csv            (canonical, fixed name)
+           output/database_creation/YYYY-MM-DD/             (dated run directory)
+               database_YYYY-MM-DD.csv
+               comparison_<old>_to_<new>.md   (if a previous database exists)
+               timeseries_y2.png + timeseries_ynpq.png
 ```
 
 All input/output paths are configured in `chlamy_impi/paths.py`.
@@ -44,7 +48,7 @@ All input/output paths are configured in `chlamy_impi/paths.py`.
 
 ## Stage 0 — Raw TIF/CSV error correction
 
-Reads every `.tif` / `.csv` pair from `data/chlamy/`, applies a sequence of automated corrections,
+Reads every `.tif` / `.csv` pair from `data/`, applies a sequence of automated corrections,
 validates the result, and writes cleaned copies to `output/cleaned_raw_data/`.
 
 ```bash
@@ -132,10 +136,17 @@ Joins the Stage 2a parquets with the identity spreadsheet and writes the final d
 python -m chlamy_impi.database_creation.main_v2
 ```
 
-Output: `output/database_creation/database.parquet` and `database.csv`.
+Each run creates a dated subdirectory `output/database_creation/YYYY-MM-DD/` containing:
 
-Key columns: `plate`, `i`, `j`, `well_id`, `fv_fm`, `y2_1`…`y2_81`, `ynpq_1`…`ynpq_81`,
-`measurement_time_0`…`measurement_time_81`, `mutant_ID`, `gene`, `confidence_level`.
+- `database_YYYY-MM-DD.csv` — snapshot for this run
+- `comparison_<old>_to_<new>.md` — regression report against the previous run (if one exists)
+- `timeseries_y2.png`, `timeseries_ynpq.png` — per-light-regime time series mosaics
+
+A canonical `output/database_creation/database.csv` (fixed name) is also written for backwards compatibility.
+
+Key columns: `plate`, `measurement`, `start_date`, `i`, `j`, `well_id`, `fv_fm`,
+`y2_1`…`y2_177`, `ynpq_1`…`ynpq_177`,
+`measurement_time_0`…`measurement_time_177`, `mutant_ID`, `gene`, `confidence_level`.
 
 
 ## Data analysis
