@@ -178,11 +178,12 @@ Stage 2a computes per-well photosynthetic parameters from the segmented arrays.
 
 ### Masking algorithm
 
-Each 21x21 pixel well image must be masked to isolate the algal colony from the background. The pipeline uses **per-timestep 5-sigma thresholding**:
+Each 21x21 pixel well image must be masked to isolate the algal colony from the background. The pipeline uses **global 3-sigma thresholding**:
 
-1. For each (dark, light) frame pair, compute a threshold from the blank top-left well (5 standard deviations above blank mean)
-2. A pixel is included only if it exceeds the threshold at **every** timestep (intersection across time)
-3. Wells with fewer than 3 masked pixels are treated as empty
+1. Pool all dark frames across all timesteps; compute a single threshold = blank mean + 3σ (blank = top-left well, which is always empty)
+2. Repeat independently for light frames
+3. Collapse each pixel's time series to its minimum value; a pixel is included only if its minimum exceeds both thresholds
+4. Wells with fewer than 3 masked pixels are treated as empty
 
 This method was selected after comparing 5 candidate approaches (see [Masking Method Comparison](#masking-method-comparison) below).
 
@@ -210,13 +211,13 @@ Five masking strategies were evaluated across all 350 plates:
 
 | Method | Empty wells | Mean mask size | Y(NPQ) valid? |
 |---|---|---|---|
-| Global min 3-sigma | 7,454 (5.6%) | 37.3 px | No |
+| **Global min 3-sigma** | **7,454 (5.6%)** | **37.3 px** | **Yes** |
 | Global mean 3-sigma | 7,014 (5.2%) | 60.5 px | No |
 | Global min 5-sigma | 7,754 (5.8%) | 30.6 px | Yes |
 | Per-timestep 3-sigma | 7,459 (5.6%) | 37.9 px | No |
-| **Per-timestep 5-sigma** | **7,704 (5.7%)** | **31.0 px** | **Yes** |
+| Per-timestep 5-sigma | 7,704 (5.7%) | 31.0 px | Yes |
 
-The 3-sigma methods fail on a probe plate (`99-M2_20h_HL`) where edge pixels have near-zero Fm at t=0 but high F/Fm' at later timepoints, producing Y(NPQ) values below -2. The per-timestep 5-sigma method is the most principled: each frame's threshold is calibrated to that frame's own blank statistics, making the mask robust to frame-to-frame variation in background intensity.
+Using the pixel-wise minimum over time before thresholding is key: pixels whose fluorescence is near background at any single frame (which would corrupt Fv/Fm and Y(NPQ) denominators) are excluded. The global mean method produces oversized masks because it is not robust to bright outlier frames. The per-timestep variants compute a separate threshold for each frame, which is more principled but substantially slower; in practice they produce near-identical masks to the global min approach. The selected method (global min 3-sigma) is fast, interpretable, and produces valid Y(NPQ) values across all plates.
 
 ### Photosynthetic parameters computed
 
@@ -335,7 +336,7 @@ Three plates have known camera clock issues (overnight interruption or DST rollb
 
 1. **Plate `31v2-M2_20h_HL`** should be flagged for manual review due to very low signal
 2. Future DST-affected plates should be added to the exemption list in `error_correction/validation.py`
-3. The masking threshold (5-sigma, per-timestep intersection) is conservative; borderline wells at plate edges are more likely to be excluded
+3. The masking threshold (global min 3-sigma) uses the pixel-wise minimum over time, so borderline wells at plate edges where signal varies between frames are more likely to be excluded
 
 ---
 

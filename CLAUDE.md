@@ -74,8 +74,8 @@ The pipeline has 4 sequential stages. Each stage reads from a specific input dir
 ## Photosynthetic Parameters
 
 - **Fv/Fm** = (Fm − F0) / Fm — maximum photosynthetic yield (single measurement per plate)
-- **Y2** — effective quantum yield of PSII at each timepoint (up to 81 timepoints, stored as `y2_1`…`y2_81`)
-- **NPQ** — non-photochemical quenching at each timepoint (stored as `ynpq_1`…`ynpq_81`)
+- **Y2** — effective quantum yield of PSII at each timepoint (up to 177 timepoints, stored as `y2_1`…`y2_177`)
+- **NPQ** — non-photochemical quenching at each timepoint (stored as `ynpq_1`…`ynpq_177`)
 
 Each TIF image has 2 channels (F0 and Fm) per timepoint. Arrays use pixel-level values; masks (`mask_functions.py`) filter valid pixels per well before averaging.
 
