@@ -185,6 +185,13 @@ def main():
     else:
         logger.info("No previous database found — skipping comparison.")
 
+    logger.info("Generating timeseries visualisations...")
+    try:
+        from chlamy_impi.database_creation.visualize_timeseries import plot_timeseries_mosaic
+        plot_timeseries_mosaic(total_df)
+    except Exception as exc:
+        logger.warning(f"Timeseries visualisation failed (non-fatal): {exc}")
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG if DEV_MODE else logging.INFO)
