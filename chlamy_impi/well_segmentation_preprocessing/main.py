@@ -17,10 +17,10 @@ import pandas as pd
 
 from chlamy_impi.database_creation.utils import parse_name
 from chlamy_impi.lib.visualize_well_segmentation import visualise_channels, visualise_well_histograms, \
-    visualise_grid_crop
+    visualise_grid_crop, visualise_well_mosaic
 from chlamy_impi.paths import find_all_cleaned_tif_images, well_segmentation_output_dir_path, npy_img_array_path, \
     validate_stage1_inputs, well_segmentation_visualisation_dir_path, well_segmentation_histogram_dir_path, \
-    get_well_segmentation_processing_results_df_filename, get_database_output_dir
+    get_well_segmentation_processing_results_df_filename, get_database_output_dir, well_segmentation_mosaic_path
 from chlamy_impi.well_segmentation_preprocessing.well_segmentation_assertions import assert_expected_shape
 
 logger = logging.getLogger(__name__)
@@ -44,6 +44,33 @@ def save_img_array(img_array, name):
 
     logger.debug(f"Saving image array of shape {img_array.shape} to {npy_img_array_path(name)}")
     np.save(npy_img_array_path(name), img_array.astype(np.float32))
+
+
+def generate_all_mosaics(filenames):
+    """Generate a well mosaic PNG for every successfully segmented plate.
+
+    Skips plates whose mosaic already exists.  Loads NPY files from disk so
+    this step is independent of whether the plate was processed in this run or
+    in a previous one.
+    """
+    logger.info("Generating well mosaics for all segmented plates...")
+    for filename in filenames:
+        name = filename.stem
+        npy_path = npy_img_array_path(name)
+        mosaic_path = well_segmentation_mosaic_path(name)
+
+        if not npy_path.exists():
+            logger.debug(f"Skipping mosaic for {name}: NPY not found")
+            continue
+        if mosaic_path.exists():
+            logger.debug(f"Skipping mosaic for {name}: already exists")
+            continue
+
+        try:
+            img_array = np.load(npy_path)
+            visualise_well_mosaic(img_array, name, mosaic_path)
+        except Exception as e:
+            logger.error(f"Failed to generate mosaic for {name}: {e}")
 
 
 def main():
@@ -121,6 +148,9 @@ def main():
     logger.info(f'Failed well segmentation in {len(error_messages)} files')
     for error in error_messages:
         logger.error(error)
+
+    generate_all_mosaics(filenames)
+
     logger.info("Program completed normally")
 
 

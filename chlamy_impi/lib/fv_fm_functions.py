@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 from skimage import filters
 
@@ -21,7 +23,8 @@ def compute_all_fv_fm_averaged(img_array, mask_array, return_std: bool = False) 
     f0_array = img_array[:, :, 0, ...]
     fm_array = img_array[:, :, 1, ...]
     fv_array = fm_array - f0_array
-    fv_fm_array = fv_array / fm_array
+    with np.errstate(divide="ignore", invalid="ignore"):
+        fv_fm_array = fv_array / fm_array
 
     fv_fm_array_means = compute_masked_mean(mask_array, fv_fm_array)
 
@@ -51,7 +54,9 @@ def compute_masked_mean(mask_array: np.array, vals_array: np.array) -> np.array:
     Ni, Nj = mask_array.shape[:2]
     vals_array[~mask_array] = np.nan
 
-    fv_fm_array_means = np.nanmean(vals_array.reshape(Ni, Nj, -1), axis=-1)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        fv_fm_array_means = np.nanmean(vals_array.reshape(Ni, Nj, -1), axis=-1)
     return fv_fm_array_means
 
 
@@ -70,7 +75,9 @@ def compute_masked_std(mask_array: np.array, vals_array: np.array) -> np.array:
     Ni, Nj = mask_array.shape[:2]
     vals_array[~mask_array] = np.nan
 
-    fv_fm_array_stds = np.nanstd(vals_array.reshape(Ni, Nj, -1), axis=-1)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        fv_fm_array_stds = np.nanstd(vals_array.reshape(Ni, Nj, -1), axis=-1)
     return fv_fm_array_stds
 
 

@@ -86,6 +86,18 @@ def well_segmentation_histogram_dir_path(name) -> Path:
     return savedir
 
 
+def well_segmentation_mosaic_path(name) -> Path:
+    return WELL_SEGMENTATION_DIR / "mosaics" / f"{name}_mosaic.png"
+
+
+def mask_mosaic_path(name) -> Path:
+    return IMAGE_PROCESSING_DIR / "mask_visualisations" / f"{name}_mask_mosaic.png"
+
+
+def mask_heatmap_path(name) -> Path:
+    return IMAGE_PROCESSING_DIR / "mask_visualisations" / f"{name}_mask_heatmap.png"
+
+
 def npy_img_array_path(name):
     return WELL_SEGMENTATION_DIR / f"{name}.npy"
 

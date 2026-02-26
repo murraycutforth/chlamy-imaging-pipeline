@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 from matplotlib import pyplot as plt
 
@@ -34,7 +36,8 @@ def compute_all_y2_averaged(img_array, mask_array, return_std: bool = False) -> 
     # Compute pixelwise Y2 values, for every pixel, ignoring mask
     Fm_prime_array = img_array[:, :, 3::2, ...]  # Skip Fm
     F_array = img_array[:, :, 2::2, ...]  # Skip F0
-    y2_array = (Fm_prime_array - F_array) / Fm_prime_array  # shape (Ni, Nj, num_steps, 20, 20)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        y2_array = (Fm_prime_array - F_array) / Fm_prime_array  # shape (Ni, Nj, num_steps, 20, 20)
     num_steps = Fm_prime_array.shape[2]
     assert num_steps == F_array.shape[2]
 
@@ -79,7 +82,9 @@ def compute_masked_mean(
     )
     vals_array[~mask_array] = np.nan
 
-    y2_array_means = np.nanmean(vals_array.reshape(Ni, Nj, num_steps, -1), axis=-1)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        y2_array_means = np.nanmean(vals_array.reshape(Ni, Nj, num_steps, -1), axis=-1)
     return y2_array_means
 
 
@@ -107,7 +112,9 @@ def compute_masked_std(
     )
     vals_array[~mask_array] = np.nan
 
-    y2_array_stds = np.nanstd(vals_array.reshape(Ni, Nj, num_steps, -1), axis=-1)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        y2_array_stds = np.nanstd(vals_array.reshape(Ni, Nj, num_steps, -1), axis=-1)
     return y2_array_stds
 
 

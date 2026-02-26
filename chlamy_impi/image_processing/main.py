@@ -19,6 +19,7 @@ import logging
 
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 from chlamy_impi.database_creation.constants import get_possible_frame_numbers
 from chlamy_impi.database_creation.main import (
@@ -30,14 +31,20 @@ from chlamy_impi.database_creation.utils import (
     compute_measurement_times,
 )
 from chlamy_impi.lib.fv_fm_functions import compute_all_fv_fm_averaged
-from chlamy_impi.lib.mask_functions import compute_threshold_mask
+from chlamy_impi.lib.mask_functions import compute_threshold_mask, MIN_MASK_PIXELS
 from chlamy_impi.lib.npq_functions import compute_all_ynpq_averaged
 from chlamy_impi.lib.y2_functions import compute_all_y2_averaged
+from chlamy_impi.lib.visualize_well_segmentation import (
+    visualise_mask_mosaic,
+    visualise_mask_heatmap,
+)
 from chlamy_impi.paths import (
     get_image_processing_output_dir,
     get_plates_parquet_path,
     get_timeseries_parquet_path,
     get_wells_parquet_path,
+    mask_mosaic_path,
+    mask_heatmap_path,
 )
 
 logger = logging.getLogger(__name__)
@@ -54,7 +61,8 @@ def _well_id(i: int, j: int) -> str:
 def process_plate(filename_npy, filename_meta):
     """Process a single plate.
 
-    Returns (plate_row dict, wells_df, ts_df) or raises on error.
+    Returns (plate_row dict, wells_df, ts_df, mask_array, n_below_threshold)
+    or raises on error.
     """
     plate_num, measurement_num, light_regime, start_date = parse_name(
         filename_npy.name, return_date=True
@@ -69,9 +77,9 @@ def process_plate(filename_npy, filename_meta):
         f"but {len(measurement_times)} CSV rows"
     )
 
-    # Compute mask once, extracting thresholds at the same time
-    mask_array, (dark_threshold, light_threshold) = compute_threshold_mask(
-        img_array, return_thresholds=True
+    # Compute mask once, extracting thresholds and below-threshold count
+    mask_array, (dark_threshold, light_threshold), n_below_threshold = compute_threshold_mask(
+        img_array, return_thresholds=True, return_n_below_threshold=True
     )
 
     # Compute photosynthetic parameters
@@ -81,6 +89,22 @@ def process_plate(filename_npy, filename_meta):
 
     Ni, Nj = img_array.shape[:2]
     n_steps = y2_array.shape[2]  # number of Y2/NPQ time steps
+
+    # Mask area per well (used for empty-well checks and the wells DataFrame)
+    mask_area = np.sum(mask_array.reshape(Ni, Nj, -1), axis=-1)  # shape (Ni, Nj)
+
+    # Verify: every non-empty well must yield valid (non-NaN) parameters
+    non_empty = mask_area > 0
+    if non_empty.any():
+        assert not np.isnan(fv_fm_array[non_empty]).any(), (
+            "Non-empty wells have NaN fv_fm"
+        )
+        assert not np.isnan(y2_array[non_empty]).any(), (
+            "Non-empty wells have NaN y2"
+        )
+        assert not np.isnan(ynpq_array[non_empty]).any(), (
+            "Non-empty wells have NaN ynpq"
+        )
 
     # --- plates row (one per experiment) ---
     plate_row = {
@@ -95,7 +119,6 @@ def process_plate(filename_npy, filename_meta):
 
     # --- wells DataFrame (one row per well, vectorised) ---
     I2d, J2d = np.meshgrid(np.arange(Ni), np.arange(Nj), indexing="ij")
-    mask_area = np.sum(mask_array.reshape(Ni, Nj, -1), axis=-1)
     well_ids = [_well_id(i, j) for i, j in zip(I2d.ravel(), J2d.ravel())]
 
     wells_df = pd.DataFrame(
@@ -135,7 +158,7 @@ def process_plate(filename_npy, filename_meta):
         }
     )
 
-    return plate_row, wells_df, ts_df
+    return plate_row, wells_df, ts_df, mask_array, n_below_threshold
 
 
 def main():
@@ -153,33 +176,78 @@ def main():
     ts_dfs = []
     failed_files = []
 
-    for filename_npy, filename_meta in zip(filenames_npy, filenames_meta):
-        logger.info(f"Processing: {filename_npy.name}")
-        try:
-            plate_row, wells_df, ts_df = process_plate(filename_npy, filename_meta)
-            plates_rows.append(plate_row)
-            wells_dfs.append(wells_df)
-            ts_dfs.append(ts_df)
-        except Exception as e:
-            if IGNORE_ERRORS:
-                logger.error(f"Error processing {filename_npy.stem}: {e}")
-                failed_files.append({"filename": filename_npy.stem, "error": str(e)})
-            else:
-                raise
+    n_below_threshold_total = 0
+    n_empty_wells_total = 0
+
+    # Suppress per-well mask warnings during the loop; the aggregate count
+    # is reported in the post-loop summary instead.
+    mask_logger = logging.getLogger("chlamy_impi.lib.mask_functions")
+    mask_logger.setLevel(logging.ERROR)
+
+    try:
+        for filename_npy, filename_meta in tqdm(
+            zip(filenames_npy, filenames_meta),
+            total=len(filenames_npy),
+            desc="Stage 2a",
+        ):
+            try:
+                plate_row, wells_df, ts_df, mask_array, n_below_threshold = process_plate(
+                    filename_npy, filename_meta
+                )
+                plates_rows.append(plate_row)
+                wells_dfs.append(wells_df)
+                ts_dfs.append(ts_df)
+
+                n_below_threshold_total += n_below_threshold
+                n_empty_wells_total += int((wells_df["mask_area"] == 0).sum())
+
+                name = filename_npy.stem
+                Ni, Nj = mask_array.shape[:2]
+                mask_area_2d = wells_df["mask_area"].values.reshape(Ni, Nj)
+                mosaic_path = mask_mosaic_path(name)
+                heatmap_path = mask_heatmap_path(name)
+                if not mosaic_path.exists():
+                    visualise_mask_mosaic(mask_array, name, mosaic_path)
+                if not heatmap_path.exists():
+                    visualise_mask_heatmap(mask_area_2d, name, heatmap_path)
+            except Exception as e:
+                if IGNORE_ERRORS:
+                    logger.error(f"Error processing {filename_npy.stem}: {e}")
+                    failed_files.append({"filename": filename_npy.stem, "error": str(e)})
+                else:
+                    raise
+    finally:
+        mask_logger.setLevel(logging.NOTSET)
 
     plates_df = pd.DataFrame(plates_rows)
     wells_df = pd.concat(wells_dfs, ignore_index=True)
     ts_df = pd.concat(ts_dfs, ignore_index=True)
 
-    logger.info(f"plates.parquet shape: {plates_df.shape}")
-    logger.info(f"wells.parquet shape: {wells_df.shape}")
-    logger.info(f"timeseries.parquet shape: {ts_df.shape}")
-
     plates_df.to_parquet(get_plates_parquet_path(), index=False)
     wells_df.to_parquet(get_wells_parquet_path(), index=False)
     ts_df.to_parquet(get_timeseries_parquet_path(), index=False)
 
+    # Post-loop summary
+    n_plates = len(plates_df)
+    n_wells = len(wells_df)
+    y2_vals = ts_df["y2"].dropna()
+    ynpq_vals = ts_df["ynpq"].dropna()
+
+    logger.info("=" * 60)
     logger.info("Stage 2a complete — parquets written to output/image_processing/")
+    logger.info(f"  Plates processed:                    {n_plates}")
+    logger.info(f"  Total wells:                         {n_wells}")
+    logger.info(f"  Empty wells (mask_area = 0):         {n_empty_wells_total}")
+    logger.info(f"  Wells zeroed (< {MIN_MASK_PIXELS} masked pixels):        {n_below_threshold_total}")
+    logger.info(
+        f"  Y(II):  mean={y2_vals.mean():.4f}  std={y2_vals.std():.4f}"
+        f"  min={y2_vals.min():.4f}  max={y2_vals.max():.4f}"
+    )
+    logger.info(
+        f"  Y(NPQ): mean={ynpq_vals.mean():.4f}  std={ynpq_vals.std():.4f}"
+        f"  min={ynpq_vals.min():.4f}  max={ynpq_vals.max():.4f}"
+    )
+    logger.info("=" * 60)
 
     if failed_files:
         logger.error(f"Failed to process {len(failed_files)} files: {failed_files}")

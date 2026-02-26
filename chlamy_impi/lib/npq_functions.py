@@ -40,7 +40,8 @@ def compute_all_ynpq_averaged(img_array, mask_array) -> np.array:
     # broadcast Fm to the same shape as F
     Fm = Fm[:, :, np.newaxis, ...]
     Fm_prime = img_array[:, :, 3::2, ...]
-    ynpq_array = (F / Fm_prime) - (F / Fm)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        ynpq_array = (F / Fm_prime) - (F / Fm)
     num_steps = Fm_prime.shape[2]
     assert num_steps == ynpq_array.shape[2]
 

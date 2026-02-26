@@ -19,6 +19,7 @@ def compute_threshold_mask(
     img_arr: np.array,
     use_opening: bool = False,
     return_thresholds: bool = False,
+    return_n_below_threshold: bool = False,
 ) -> np.array:
     """
     Primary pipeline mask function.
@@ -33,9 +34,12 @@ def compute_threshold_mask(
         use_opening: whether to apply morphological opening to the raw mask
         return_thresholds: if True, also return (dark_threshold_t0, light_threshold_t0)
                            from the initial measurement pair
+        return_n_below_threshold: if True, also return the count of wells that had
+                                  1–(MIN_MASK_PIXELS-1) masked pixels and were zeroed out
 
     Output:
         mask_arr: 4D numpy array of shape (num_rows, num_columns, height, width)
+        Optionally followed by thresholds tuple and/or n_below_threshold count.
     """
     result = compute_threshold_mask_per_timestep(
         img_arr, num_std=5, use_opening=use_opening, return_thresholds=return_thresholds
@@ -47,6 +51,7 @@ def compute_threshold_mask(
 
     Ni, Nj = mask.shape[:2]
     sizes = mask.reshape(Ni, Nj, -1).sum(axis=-1)
+    n_below_threshold = 0
     for i, j in itertools.product(range(Ni), range(Nj)):
         sz = int(sizes[i, j])
         if 0 < sz < MIN_MASK_PIXELS:
@@ -55,11 +60,14 @@ def compute_threshold_mask(
                 f"MIN_MASK_PIXELS={MIN_MASK_PIXELS}; treating as empty"
             )
             mask[i, j] = False
+            n_below_threshold += 1
 
+    out = [mask]
     if return_thresholds:
-        return mask, thresholds
-    else:
-        return mask
+        out.append(thresholds)
+    if return_n_below_threshold:
+        out.append(n_below_threshold)
+    return out[0] if len(out) == 1 else tuple(out)
 
 
 # ---------------------------------------------------------------------------
