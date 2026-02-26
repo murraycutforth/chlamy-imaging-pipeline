@@ -2,15 +2,15 @@
 # Remove all intermediate pipeline caches to force a full re-run.
 #
 # Caches cleared:
-#   Stage 0  output/cleaned_raw_data/                  (cleaned TIF + CSV)
-#   Stage 1  output/well_segmentation_cache/           (.npy well arrays)
-#   Stage 2a output/image_processing/plate_cache/      (per-plate parquets)
+#   Stage 0  output/cleaned_raw_data/                           (cleaned TIF + CSV)
+#   Stage 1  output/well_segmentation_cache/                    (.npy well arrays)
+#   Stage 2a output/image_processing/plate_cache/               (per-plate parquets)
+#   Stage 2a output/image_processing/mask_visualisations/       (mask mosaics + heatmaps)
 #   Stage 2a output/image_processing/plates.parquet
 #   Stage 2a output/image_processing/wells.parquet
 #   Stage 2a output/image_processing/timeseries.parquet
 #
 # Final outputs (output/database_creation/) are NOT removed.
-# Mask visualisations (output/image_processing/mask_visualisations/) are NOT removed.
 #
 # Usage:
 #   bash scripts/clear_caches.sh
@@ -25,6 +25,7 @@ CACHES=(
     "$OUT/cleaned_raw_data"
     "$OUT/well_segmentation_cache"
     "$OUT/image_processing/plate_cache"
+    "$OUT/image_processing/mask_visualisations"
     "$OUT/image_processing/plates.parquet"
     "$OUT/image_processing/wells.parquet"
     "$OUT/image_processing/timeseries.parquet"
