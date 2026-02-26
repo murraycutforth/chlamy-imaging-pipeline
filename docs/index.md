@@ -20,7 +20,7 @@ This report documents the Chlamy-IMPI data processing pipeline, which extracts p
 | Metric | Value |
 |---|---|
 | Raw TIF/CSV pairs processed | **350** |
-| Plates passing error correction | **347 / 350** (99.1%) |
+| Plates passing error correction | **350 / 350** (100%) |
 | Unique plate IDs (genetic backgrounds) | **48** |
 | Light regimes | **8** |
 | Total wells in database | **134,112** |
@@ -104,19 +104,34 @@ Every raw TIF has a fixed header that must be stripped:
 1. **Remove warmup pair** -- strips frames 0-1 (TIF only, always present)
 2. **Remove black frame pairs** -- removes pre-measurement trigger pairs; also removes mid-experiment half-black artifacts from both TIF and CSV
 3. **Remove duplicate initial frame pair** -- safety net for rare double-warmup
-4. **Remove spurious frames** -- automated timestamp-based detection
+4. **Remove spurious frames** -- automated timestamp-based detection (see algorithm below)
 5. **Validate** -- asserts frame count, TIF/CSV alignment, no black frames, monotone timestamps, interval consistency
+
+### Spurious-frame detection algorithm
+
+Each spurious measurement event inserts one extra CSV row (and two extra TIF frames) into an otherwise clean sequence. Because the spurious row's timestamp falls *between* two legitimate rows, it creates a pair of consecutive anomalously short inter-row intervals whose sum equals roughly one normal interval.
+
+**Steps:**
+1. Compute `n_to_remove = csv_rows − target_rows`, where `target_rows` is the largest valid frame count ≤ `2 × csv_rows` divided by two. If `2 × csv_rows` is already valid, `n_to_remove = 0`.
+2. Compute inter-row intervals (seconds) from the `Date`/`Time` columns.
+3. Scan the interval sequence for the first anomalous interval in each spurious pair: a row is flagged as spurious if the interval *preceding* it falls outside all expected ranges for the plate's time regime.
+4. Each flagged row index `k` removes two TIF frames (`2k`, `2k+1`) and one CSV row from the metadata.
+5. Assert the resulting frame count is in the valid set; raise if not.
+
+Expected intervals (per time regime) are defined in `database_creation/constants.py`. All regimes include a `(900 s, 940 s)` dark-recovery step before the final measurement.
 
 ### Results
 
-- **347 / 350 plates pass** (99.1%)
-- 3 plates fail due to unfixable data-collection faults:
+- **350 / 350 plates pass** (100%)
+- 3 plates have known timestamp anomalies (camera clock drift or DST rollback) but **valid image data and correct frame counts**. They are **included in the final database**. These plates are exempt from timestamp monotonicity and interval-consistency checks but pass all other validation:
 
 | Plate | Reason |
 |---|---|
 | `20231102_4-M4_20h_ML` | 24-hour gap (experiment interrupted overnight) |
 | `20231104_4-M6_10min-10min` | US DST clock rollback, Nov 2023 |
 | `20241102_33v3-M6_10min-10min` | US DST clock rollback, Nov 2024 |
+
+Any future plate with similar clock issues must be added to the exemption list in `error_correction/validation.py`; it will otherwise fail validation.
 
 ### Valid frame counts by time regime
 
@@ -288,7 +303,7 @@ The pipeline generates per-light-regime timeseries mosaics showing Y(II) and Y(N
 
 ### Overall quality
 
-- **99.1% of raw plates** pass automated error correction
+- **100% of raw plates** pass automated error correction (3 plates exempt from timestamp checks)
 - **94.3% of wells** have valid signal (mask area >= 3 pixels)
 - **0 regression failures** between consecutive pipeline runs
 
@@ -306,7 +321,9 @@ Top outlier plates with many tiny-mask wells:
 
 The top outlier (`31v2-M2_20h_HL`) is likely a plate-level failure rather than an algorithmic issue.
 
-### Known unfixable plates (excluded from database)
+### Plates with timestamp anomalies
+
+Three plates have known camera clock issues (overnight interruption or DST rollback) that produce invalid timestamps, but their image data and frame counts are correct. They are **included in the final database** and exempt only from timestamp validation:
 
 | Plate | Issue |
 |---|---|
