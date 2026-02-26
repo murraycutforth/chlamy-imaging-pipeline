@@ -12,7 +12,6 @@ Each subplot shows:
 
 import logging
 import re
-import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -76,7 +75,6 @@ def _draw_subplot(
     mt_cols: list[str],
     color: str,
     metric_label: str,
-    first: bool,
 ) -> None:
     n_wells = len(subset)
     if n_wells == 0:
@@ -103,28 +101,10 @@ def _draw_subplot(
             ax.plot(t[ok], v[ok], color=color, alpha=0.05,
                     linewidth=0.5, rasterized=True)
 
-    # Percentile bands over the full population
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", RuntimeWarning)
-        p05 = np.nanpercentile(vals, 5, axis=0)
-        p25 = np.nanpercentile(vals, 25, axis=0)
-        p50 = np.nanpercentile(vals, 50, axis=0)
-        p75 = np.nanpercentile(vals, 75, axis=0)
-        p95 = np.nanpercentile(vals, 95, axis=0)
-        t_med = np.nanmedian(time_h, axis=0)
-    ok = np.isfinite(t_med)
-    ax.fill_between(t_med[ok], p05[ok], p95[ok], color=color, alpha=0.12,
-                    label="5–95th pct")
-    ax.fill_between(t_med[ok], p25[ok], p75[ok], color=color, alpha=0.25,
-                    label="IQR")
-    ax.plot(t_med[ok], p50[ok], color=color, linewidth=1.5, label="median")
-
     ax.set_xlabel("Time (hours)", fontsize=8)
     ax.set_ylabel(metric_label, fontsize=8)
     ax.tick_params(labelsize=7)
     ax.grid(True, alpha=0.25, linewidth=0.5)
-    if first:
-        ax.legend(fontsize=7, loc="upper right")
 
 
 # ---------------------------------------------------------------------------
@@ -178,7 +158,7 @@ def plot_timeseries_mosaic(df: pd.DataFrame) -> None:
             ax = axes[idx // ncols][idx % ncols]
             subset = df[df["light_regime"] == regime].reset_index(drop=True)
             ax.set_title(f"{regime}  (n = {len(subset):,})", fontsize=9)
-            _draw_subplot(ax, subset, val_cols, mt_cols, color, metric, first=(idx == 0))
+            _draw_subplot(ax, subset, val_cols, mt_cols, color, metric)
 
         for idx in range(n, nrows * ncols):
             axes[idx // ncols][idx % ncols].set_visible(False)
