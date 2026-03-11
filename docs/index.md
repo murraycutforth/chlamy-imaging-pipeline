@@ -202,7 +202,7 @@ This method was selected after comparing 5 candidate approaches (see [Masking Me
 
 ![Mask heatmap - problem plate](assets/images/problem_mask_heatmap.png)
 
-*Heatmap of masked pixel count per well for plate `31v2-M2_20h_HL`: only 133 of 384 wells have masks of ≥3 pixels. Plates with large numbers of empty wells are retained in the database; empty wells are recorded with NaN parameter values.*
+*Heatmap of masked pixel count per well for plate `31v2-M2_20h_HL`: only 237 of 384 wells have masks of ≥3 pixels. Plates with large numbers of empty wells are retained in the database; empty wells are recorded with NaN parameter values.*
 
 ### Masking method comparison
 
@@ -210,13 +210,13 @@ Five masking strategies were evaluated across all 350 plates:
 
 | Method | Empty wells | Mean mask size | Y(NPQ) valid? |
 |---|---|---|---|
-| **Global min 3-sigma** | **7,454 (5.6%)** | **37.3 px** | **Yes** |
+| **Global min 3-sigma** | **7,454 (5.6%)** | **37.3 px** | **No** |
 | Global mean 3-sigma | 7,014 (5.2%) | 60.5 px | No |
 | Global min 5-sigma | 7,754 (5.8%) | 30.6 px | Yes |
 | Per-timestep 3-sigma | 7,459 (5.6%) | 37.9 px | No |
 | Per-timestep 5-sigma | 7,704 (5.7%) | 31.0 px | Yes |
 
-Using the pixel-wise minimum over time before thresholding is key: pixels whose fluorescence is near background at any single frame (which would corrupt Fv/Fm and Y(NPQ) denominators) are excluded. The global mean method produces oversized masks because it is not robust to bright outlier frames. The per-timestep variants compute a separate threshold for each frame, which is more principled but substantially slower; in practice they produce near-identical masks to the global min approach. The selected method (global min 3-sigma) is fast, interpretable, and produces valid Y(NPQ) values across all plates.
+Using the pixel-wise minimum over time before thresholding is key: pixels whose fluorescence is near background at any single frame (which would corrupt Fv/Fm and Y(NPQ) denominators) are excluded. The global mean method produces oversized masks because it is not robust to bright outlier frames. The per-timestep variants compute a separate threshold for each frame, which is more principled but substantially slower; in practice they produce near-identical masks to the global min approach. The selected method (global min 3-sigma) is fast and interpretable. It produces out-of-range Y(NPQ) values (< −2.0) for a small minority of wells in plates 31v2 and 99, where physical conditions drive the measurement beyond the expected range; these are retained in the database as-is.
 
 ### Photosynthetic parameters computed
 
@@ -230,7 +230,7 @@ All values are pixel-level averages over the masked region of each well.
 
 ![Fv/Fm distributions](assets/images/fvfm_distribution.png)
 
-*Left: Fv/Fm density by light regime -- distributions are similar across regimes, centred around 0.63. Right: distribution of empty wells per plate -- median is ~18 empty wells per plate (out of 384).*
+*Left: Fv/Fm density by light regime -- distributions are similar across regimes, centred around 0.63. Right: distribution of empty wells per plate -- median is ~20 empty wells per plate (out of 384).*
 
 ### Fv/Fm by plate ID
 
