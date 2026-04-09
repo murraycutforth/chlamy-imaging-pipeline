@@ -30,7 +30,10 @@ CORRECTED_WELL_SEGMENTATION_DIR = PROJECT_ROOT / "output" / "corrected_well_segm
 # Update - final sheet is now here:
 # https://docs.google.com/spreadsheets/d/1reX1t-C9rwjwhJWRowGZPUV7F4B1Wvvw/edit#gid=1935584839
 IDENTITY_SPREADSHEET_PATH = \
-    INPUT_DIR / "Finalized Identities Phase I plates.xlsx"
+    INPUT_DIR / "20251002 Finalized Identities Phase I plates.xlsx"
+
+# CONTAMINATION_SPREADSHEET_PATH records per-well contamination observations
+CONTAMINATION_SPREADSHEET_PATH = INPUT_DIR / "Contamination Phase I.xlsx"
 
 
 # DATABASE_DIR is where we save the output of the database creation as .csv files
@@ -106,6 +109,10 @@ def npy_img_array_path(name):
 
 def get_identity_spreadsheet_path():
     return IDENTITY_SPREADSHEET_PATH
+
+
+def get_contamination_spreadsheet_path():
+    return CONTAMINATION_SPREADSHEET_PATH
 
 
 def get_database_output_dir():

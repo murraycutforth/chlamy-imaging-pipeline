@@ -21,26 +21,26 @@ This report documents the Chlamy-IMPI data processing pipeline, which extracts p
 |---|---|
 | Raw TIF/CSV pairs processed | **350** |
 | Plates passing error correction | **350 / 350** (100%) |
-| Unique plate IDs in database | **41** |
-| Unique plate IDs in experimental data | **48** (7 excluded: no identity mapping) |
+| Unique plate IDs in database | **50** |
+| Unique plate IDs in experimental data | **55** (5 excluded: no identity mapping) |
 | Light regimes | **8** |
-| Total wells in database | **134,112** |
-| Non-empty wells (valid signal) | **126,502** (94.3%) |
-| Empty wells (no algal colony) | **7,610** (5.7%) |
-| Timeseries data points | **9,151,584** |
-| Date range of experiments | Oct 2023 -- Feb 2026 |
-| Database columns | **726** |
-| Database rows | **117,512** |
+| Total wells in database | **136,389** |
+| Non-empty wells (valid signal) | **128,827** (94.5%) |
+| Empty wells (no algal colony) | **7,562** (5.5%) |
+| Timeseries data points | **9,975,264** |
+| Date range of experiments | Oct 2023 -- Apr 2026 |
+| Database columns | **727** |
+| Database rows | **136,389** |
 
 ### Photosynthetic parameter summary (non-empty wells)
 
 | Parameter | Mean | Median | Std |
 |---|---|---|---|
-| Fv/Fm | 0.633 | 0.633 | 0.051 |
-| Y(II) | 0.363 | 0.339 | -- |
+| Fv/Fm | 0.633 | 0.634 | 0.050 |
+| Y(II) | 0.365 | 0.343 | -- |
 | Y(NPQ) | 0.180 | 0.188 | -- |
 
-The pipeline is **stable and reproducible**: consecutive runs (2026-02-25 vs 2026-02-26) produced identical databases with 0 parameter differences exceeding quality thresholds.
+The pipeline is **stable and reproducible**: the latest run (2026-04-09) added 9 new plates and the `contaminated` column compared to the previous run (2026-02-26). Parameter values for existing wells are unchanged.
 
 ---
 
@@ -80,7 +80,7 @@ data/                          (raw TIF + CSV files)
 
 **Input data format:** Each experiment produces a paired `.tif` (multi-frame fluorescence images) and `.csv` (measurement timestamps) file. Each TIF contains alternating dark (F0) and light (Fm) frames -- two frames per measurement timepoint. The 384-well plates are arranged in a 16-row x 24-column grid.
 
-**Output:** A single canonical `database.csv` (117,512 rows x 726 columns) containing per-well photosynthetic parameters, timeseries data, and genetic identity for all experiments.
+**Output:** A single canonical `database.csv` (136,389 rows x 727 columns) containing per-well photosynthetic parameters, timeseries data, and genetic identity for all experiments.
 
 ---
 
@@ -259,34 +259,36 @@ A canonical `database.csv` is also written for backwards compatibility.
 
 The identity spreadsheet maps `(plate, well_id)` to mutant identifiers. Mismatches between the spreadsheet and the experimental data are logged as errors/warnings and result in data being silently excluded from the final database.
 
-**Plates in experimental data but not in the identity spreadsheet** (7 plates — excluded from database):
+**Plates in experimental data but not in the identity spreadsheet** (5 plate labels — excluded from database):
+
+| Plate | Notes |
+|---|---|
+| `34v3` | No identity mapping |
+| `35` | No identity mapping |
+| `36V1` | Case variant of `36v1` (which is in the DB) |
+| `36V3` | Case variant of `36v3` (which is in the DB) |
+| `37V2` | Case variant of `37v2` (which is in the DB) |
+
+Plates `34v3` and `35` have valid segmentation and parameter data (Stage 2a) but cannot be included without mutant identity information. The three case-variant plates (`36V1`, `36V3`, `37V2`) arise from inconsistent filename capitalisation; their lowercase equivalents are matched and included.
+
+**Plates in identity spreadsheet but not in experimental data** (3 plates):
 
 | Plate |
 |---|
-| `34v1` |
-| `34v2` |
-| `34v3` |
-| `35` |
-| `35v1` |
-| `35v2` |
-| `35v3` |
-
-These plates have valid segmentation and parameter data (Stage 2a) but cannot be included without mutant identity information. The identity spreadsheet must be updated to include them before they appear in the database.
-
-**Plates in identity spreadsheet but not in experimental data** (1 plate):
-
-| Plate |
-|---|
+| `37v1` |
+| `37v3` |
 | `99v2` |
 
-No TIF/CSV data exists for plate `99v2`; it appears in the identity spreadsheet but was never imaged (or not yet processed).
+No TIF/CSV data exists for these plates; they appear in the identity spreadsheet but were never imaged (or not yet processed).
 
-**Dropped (plate, well) combos** (117 total):
+**Dropped (plate, well) combos** (635 total):
 
-117 non-blank wells across 12 plates exist in the experimental data but have no entry in the identity spreadsheet. They are silently dropped from the database during the identity merge. The per-plate breakdown is:
+635 non-blank wells across 14 plates exist in the experimental data but have no entry in the identity spreadsheet. They are silently dropped from the database during the identity merge. The per-plate breakdown is:
 
 | Plate | Dropped wells | Notable pattern |
 |---|---|---|
+| `34v2` | 380 | Nearly all wells — identity coverage is sparse |
+| `37v2` | 129 | Scattered across plate |
 | `20` | 4 | G12, K24, O23, O24 |
 | `21` | 16 | Scattered |
 | `22` | 14 | Scattered |
@@ -298,9 +300,9 @@ No TIF/CSV data exists for plate `99v2`; it appears in the identity spreadsheet 
 | `31v1` | 17 | B02, L23, L24, and contiguous block P11–P24 |
 | `31v2` | 17 | Scattered |
 | `31v3` | 17 | Scattered |
-| `99v3` | 1 | P24 |
+| `34v1` | 10 | Scattered |
 
-Plates 20–24 and 31v1–31v3 account for the majority of dropped wells. The contiguous gaps in plate `24` (N14–N24) and `31v1` (row P) indicate entire row segments were omitted from the spreadsheet rather than individual missing entries.
+Plates `34v2` and `37v2` account for the majority of dropped wells due to incomplete identity spreadsheet coverage for these newer plates.
 
 ### Database versioning
 
@@ -311,20 +313,20 @@ The pipeline supports versioned databases. Each run is saved with its date, and 
 - Wells that change from empty to non-empty or vice versa
 - Parameter diffs exceeding thresholds (Fv/Fm > 0.05, Y(II) > 0.10)
 
-**Latest comparison (2026-02-25 vs 2026-02-26):** No changes detected -- identical row counts (117,512), no schema changes, no parameter diffs.
+**Latest comparison (2026-02-26 vs 2026-04-09):** +18,877 rows (117,512 → 136,389), 9 plates added (34v1, 34v2, 35v1, 35v2, 35v3, 36v1, 36v2, 36v3, 37v2), 1 column added (`contaminated`). Parameter values for previously-existing wells are unchanged.
 
 ### Experiments per light regime
 
 | Light regime | Plate count |
 |---|---|
-| 10min-10min | 58 |
-| 1min-1min | 50 |
+| 10min-10min | 59 |
+| 1min-1min | 51 |
+| 30s-30s | 51 |
+| 2h-2h | 51 |
+| 20h_ML | 50 |
 | 20h_HL | 49 |
-| 20h_ML | 48 |
-| 2h-2h | 48 |
-| 30s-30s | 47 |
-| 1min-5min | 25 |
-| 5min-5min | 25 |
+| 1min-5min | 28 |
+| 5min-5min | 26 |
 
 ---
 
@@ -351,10 +353,10 @@ The pipeline generates per-light-regime timeseries mosaics showing Y(II) and Y(N
 ### Overall quality
 
 - **100% of raw plates** pass automated error correction (3 plates exempt from timestamp checks)
-- **94.3% of wells** have valid signal (mask area >= 3 pixels)
-- **0 regression failures** between consecutive pipeline runs
-- **7 plates excluded** from the database (in experimental data but missing from identity spreadsheet)
-- **117 wells dropped** across 12 plates (no identity entry)
+- **94.5% of wells** have valid signal (mask area >= 3 pixels)
+- **0 regression failures** between consecutive pipeline runs (parameter values unchanged for existing wells)
+- **5 plate labels excluded** from the database (2 missing from identity spreadsheet, 3 case-variant duplicates)
+- **635 wells dropped** across 14 plates (no identity entry)
 
 ### Tiny mask wells
 
@@ -383,15 +385,16 @@ Three plates have known camera clock issues (overnight interruption or DST rollb
 ### Recommendations
 
 1. **Plate `31v2-M2_20h_HL`** should be flagged for manual review due to very low signal
-2. **Update the identity spreadsheet** to add entries for plates `34v1`, `34v2`, `34v3`, `35`, `35v1`, `35v2`, `35v3` (currently excluded from the database) and for the 117 dropped wells across plates 20–24, 30v1–30v3, 31v1–31v3, and 99v3 — see [Identity spreadsheet coverage](#identity-spreadsheet-coverage)
-3. Future DST-affected plates should be added to the exemption list in `error_correction/validation.py`
-4. The masking threshold (global min 3-sigma) uses the pixel-wise minimum over time, so borderline wells at plate edges where signal varies between frames are more likely to be excluded
+2. **Update the identity spreadsheet** to add entries for plates `34v3` and `35` (currently excluded from the database), to complete coverage for `34v1` (10 dropped wells), `34v2` (380 dropped wells), and `37v2` (129 dropped wells) — see [Identity spreadsheet coverage](#identity-spreadsheet-coverage)
+3. **Fix plate name case inconsistency** — experimental data files for plates `36V1`, `36V3`, and `37V2` use uppercase "V" while the identity spreadsheet uses lowercase; normalising the plate naming convention would eliminate 3 of the 5 excluded plate labels
+4. Future DST-affected plates should be added to the exemption list in `error_correction/validation.py`
+5. The masking threshold (global min 3-sigma) uses the pixel-wise minimum over time, so borderline wells at plate edges where signal varies between frames are more likely to be excluded
 
 ---
 
 ## Appendix: Database Schema
 
-The final `database.csv` contains 726 columns and 117,512 rows. One row per (plate x measurement x well).
+The final `database.csv` contains 727 columns and 136,389 rows. One row per (plate x measurement x well).
 
 ### Identification columns
 
@@ -416,7 +419,7 @@ The final `database.csv` contains 726 columns and 117,512 rows. One row per (pla
 | `ynpq_1` ... `ynpq_177` | Y(NPQ) timeseries |
 | `measurement_time_0` ... `measurement_time_177` | Timestamps per timepoint |
 
-### Genetic identity
+### Genetic identity & quality flags
 
 | Column | Description |
 |---|---|
@@ -425,6 +428,7 @@ The final `database.csv` contains 726 columns and 117,512 rows. One row per (pla
 | `mutated_genes` | Gene(s) affected |
 | `num_mutations` | Number of mutations |
 | `confidence_level` | Confidence in genetic annotation |
+| `contaminated` | Boolean flag from contamination spreadsheet |
 
 ---
 

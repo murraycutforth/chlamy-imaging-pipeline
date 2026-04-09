@@ -31,9 +31,10 @@ def construct_identity_dataframe(mutation_df: pd.DataFrame, conf_threshold: int 
     identity_spreadsheet = get_identity_spreadsheet_path()
     df = pd.read_excel(identity_spreadsheet, header=0, engine="openpyxl")
 
-    assert (
-        df["mutant_ID"].notnull().all()
-    ), f'Found a total of {df["mutant_ID"].isnull().sum()} null values in mutant_ID'
+    n_null = df["mutant_ID"].isnull().sum()
+    if n_null > 0:
+        logger.warning(f"Dropping {n_null} rows with null mutant_ID from identity spreadsheet")
+        df = df.dropna(subset=["mutant_ID"])
 
     # NOTE: the finalised identity spreadsheet has non-unique column names. Pandas appends .1, .2, .3, etc. to these
 
