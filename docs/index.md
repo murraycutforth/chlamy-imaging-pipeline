@@ -19,18 +19,18 @@ This report documents the Chlamy-IMPI data processing pipeline, which extracts p
 
 | Metric | Value |
 |---|---|
-| Raw TIF/CSV pairs processed | **350** |
-| Plates passing error correction | **350 / 350** (100%) |
+| Raw TIF/CSV pairs processed | **388** |
+| Plates passing error correction | **388 / 388** (100%) |
 | Unique plate IDs in database | **50** |
-| Unique plate IDs in experimental data | **55** (5 excluded: no identity mapping) |
+| Unique plate IDs in experimental data | **52** (2 excluded: no identity mapping) |
 | Light regimes | **8** |
-| Total wells in database | **136,389** |
-| Non-empty wells (valid signal) | **128,827** (94.5%) |
-| Empty wells (no algal colony) | **7,562** (5.5%) |
+| Total wells in database | **138,819** |
+| Non-empty wells (valid signal) | **131,135** (94.5%) |
+| Empty wells (no algal colony) | **7,684** (5.5%) |
 | Timeseries data points | **9,975,264** |
 | Date range of experiments | Oct 2023 -- Apr 2026 |
-| Database columns | **727** |
-| Database rows | **136,389** |
+| Database columns | **726** |
+| Database rows | **138,819** |
 
 ### Photosynthetic parameter summary (non-empty wells)
 
@@ -40,7 +40,7 @@ This report documents the Chlamy-IMPI data processing pipeline, which extracts p
 | Y(II) | 0.365 | 0.343 | -- |
 | Y(NPQ) | 0.180 | 0.188 | -- |
 
-The pipeline is **stable and reproducible**: the latest run (2026-04-09) added 9 new plates and the `contaminated` column compared to the previous run (2026-02-26). Parameter values for existing wells are unchanged.
+The pipeline is **stable and reproducible**: the latest run (2026-04-10) added 9 new plates compared to the previous run (2026-02-26), and resolved plate name case inconsistencies. Parameter values for previously-existing wells are unchanged.
 
 ---
 
@@ -80,7 +80,7 @@ data/                          (raw TIF + CSV files)
 
 **Input data format:** Each experiment produces a paired `.tif` (multi-frame fluorescence images) and `.csv` (measurement timestamps) file. Each TIF contains alternating dark (F0) and light (Fm) frames -- two frames per measurement timepoint. The 384-well plates are arranged in a 16-row x 24-column grid.
 
-**Output:** A single canonical `database.csv` (136,389 rows x 727 columns) containing per-well photosynthetic parameters, timeseries data, and genetic identity for all experiments.
+**Output:** A single canonical `database.csv` (138,819 rows x 726 columns) containing per-well photosynthetic parameters, timeseries data, and genetic identity for all experiments.
 
 ---
 
@@ -123,7 +123,7 @@ Expected intervals (per time regime) are defined in `database_creation/constants
 
 ### Results
 
-- **350 / 350 plates pass** (100%)
+- **388 / 388 plates pass** (100%)
 - 3 plates have known timestamp anomalies (camera clock drift or DST rollback) but **valid image data and correct frame counts**. They are **included in the final database**. These plates are exempt from timestamp monotonicity and interval-consistency checks but pass all other validation:
 
 | Plate | Reason |
@@ -206,7 +206,7 @@ This method was selected after comparing 5 candidate approaches (see [Masking Me
 
 ### Masking method comparison
 
-Five masking strategies were evaluated across all 350 plates:
+Five masking strategies were evaluated across all plates:
 
 | Method | Empty wells | Mean mask size | Y(NPQ) valid? |
 |---|---|---|---|
@@ -259,17 +259,14 @@ A canonical `database.csv` is also written for backwards compatibility.
 
 The identity spreadsheet maps `(plate, well_id)` to mutant identifiers. Mismatches between the spreadsheet and the experimental data are logged as errors/warnings and result in data being silently excluded from the final database.
 
-**Plates in experimental data but not in the identity spreadsheet** (5 plate labels — excluded from database):
+**Plates in experimental data but not in the identity spreadsheet** (2 plate labels — excluded from database):
 
 | Plate | Notes |
 |---|---|
 | `34v3` | No identity mapping |
 | `35` | No identity mapping |
-| `36V1` | Case variant of `36v1` (which is in the DB) |
-| `36V3` | Case variant of `36v3` (which is in the DB) |
-| `37V2` | Case variant of `37v2` (which is in the DB) |
 
-Plates `34v3` and `35` have valid segmentation and parameter data (Stage 2a) but cannot be included without mutant identity information. The three case-variant plates (`36V1`, `36V3`, `37V2`) arise from inconsistent filename capitalisation; their lowercase equivalents are matched and included.
+These plates have valid segmentation and parameter data (Stage 2a) but cannot be included without mutant identity information.
 
 **Plates in identity spreadsheet but not in experimental data** (3 plates):
 
@@ -313,20 +310,20 @@ The pipeline supports versioned databases. Each run is saved with its date, and 
 - Wells that change from empty to non-empty or vice versa
 - Parameter diffs exceeding thresholds (Fv/Fm > 0.05, Y(II) > 0.10)
 
-**Latest comparison (2026-02-26 vs 2026-04-09):** +18,877 rows (117,512 → 136,389), 9 plates added (34v1, 34v2, 35v1, 35v2, 35v3, 36v1, 36v2, 36v3, 37v2), 1 column added (`contaminated`). Parameter values for previously-existing wells are unchanged.
+**Latest comparison (2026-02-26 vs 2026-04-10):** +21,307 rows (117,512 → 138,819), 9 plates added (34v1, 34v2, 35v1, 35v2, 35v3, 36v1, 36v2, 36v3, 37v2). Plate name case normalisation resolved 3 previously-excluded case-variant plates (36V1, 36V3, 37V2 → merged with lowercase equivalents). Parameter values for previously-existing wells are unchanged.
 
 ### Experiments per light regime
 
 | Light regime | Plate count |
 |---|---|
-| 10min-10min | 59 |
-| 1min-1min | 51 |
+| 10min-10min | 60 |
+| 1min-1min | 53 |
+| 2h-2h | 52 |
+| 20h_ML | 51 |
 | 30s-30s | 51 |
-| 2h-2h | 51 |
-| 20h_ML | 50 |
 | 20h_HL | 49 |
 | 1min-5min | 28 |
-| 5min-5min | 26 |
+| 5min-5min | 28 |
 
 ---
 
@@ -355,7 +352,7 @@ The pipeline generates per-light-regime timeseries mosaics showing Y(II) and Y(N
 - **100% of raw plates** pass automated error correction (3 plates exempt from timestamp checks)
 - **94.5% of wells** have valid signal (mask area >= 3 pixels)
 - **0 regression failures** between consecutive pipeline runs (parameter values unchanged for existing wells)
-- **5 plate labels excluded** from the database (2 missing from identity spreadsheet, 3 case-variant duplicates)
+- **2 plate labels excluded** from the database (missing from identity spreadsheet)
 - **635 wells dropped** across 14 plates (no identity entry)
 
 ### Tiny mask wells
@@ -386,15 +383,14 @@ Three plates have known camera clock issues (overnight interruption or DST rollb
 
 1. **Plate `31v2-M2_20h_HL`** should be flagged for manual review due to very low signal
 2. **Update the identity spreadsheet** to add entries for plates `34v3` and `35` (currently excluded from the database), to complete coverage for `34v1` (10 dropped wells), `34v2` (380 dropped wells), and `37v2` (129 dropped wells) — see [Identity spreadsheet coverage](#identity-spreadsheet-coverage)
-3. **Fix plate name case inconsistency** — experimental data files for plates `36V1`, `36V3`, and `37V2` use uppercase "V" while the identity spreadsheet uses lowercase; normalising the plate naming convention would eliminate 3 of the 5 excluded plate labels
-4. Future DST-affected plates should be added to the exemption list in `error_correction/validation.py`
-5. The masking threshold (global min 3-sigma) uses the pixel-wise minimum over time, so borderline wells at plate edges where signal varies between frames are more likely to be excluded
+3. Future DST-affected plates should be added to the exemption list in `error_correction/validation.py`
+4. The masking threshold (global min 3-sigma) uses the pixel-wise minimum over time, so borderline wells at plate edges where signal varies between frames are more likely to be excluded
 
 ---
 
 ## Appendix: Database Schema
 
-The final `database.csv` contains 727 columns and 136,389 rows. One row per (plate x measurement x well).
+The final `database.csv` contains 726 columns and 138,819 rows. One row per (plate x measurement x well).
 
 ### Identification columns
 
@@ -428,7 +424,6 @@ The final `database.csv` contains 727 columns and 136,389 rows. One row per (pla
 | `mutated_genes` | Gene(s) affected |
 | `num_mutations` | Number of mutations |
 | `confidence_level` | Confidence in genetic annotation |
-| `contaminated` | Boolean flag from contamination spreadsheet |
 
 ---
 

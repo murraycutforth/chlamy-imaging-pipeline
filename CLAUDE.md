@@ -23,7 +23,18 @@ python -m pytest tests/
 # Run a single test file
 python -m pytest tests/test_fv_fm.py
 
+# Download latest raw data + identity spreadsheet from Google Drive (uses rclone)
+cd data && bash download_data.sh
+
+# Download identity spreadsheet only
+cd data && bash download_identity_sheet.sh
+
+# Clear all pipeline caches (interactive confirmation prompt)
+bash scripts/clear_caches.sh
+
 # Run the full pipeline (4 stages in order)
+bash scripts/generate_database.sh
+# or individually:
 python -m chlamy_impi.error_correction.main
 python -m chlamy_impi.well_segmentation_preprocessing.main
 python -m chlamy_impi.image_processing.main

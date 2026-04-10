@@ -26,11 +26,13 @@ def get_timestamp_check_exempt_plates() -> frozenset[str]:
         20231102_4-M4_20h_ML          — 24-hour gap (experiment interrupted overnight)
         20231104_4-M6_10min-10min     — DST clock rollback (US, first Sunday Nov 2023)
         20241102_33v3-M6_10min-10min  — DST clock rollback (US, first Sunday Nov 2024)
+        20260307_37v1-M3_20h_ML       — DST spring-forward (US, second Sunday Mar 2026)
     """
     return frozenset({
         '20231102_4-M4_20h_ML',
         '20231104_4-M6_10min-10min',
         '20241102_33v3-M6_10min-10min',
+        '20260307_37v1-M3_20h_ML',
     })
 
 

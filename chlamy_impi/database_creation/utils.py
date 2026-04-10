@@ -84,7 +84,7 @@ def parse_name(f, return_date: int = False):
         assert len(parts) in {3, 4}, f"Unexpected number of parts in filename: {f}, parts: {parts}"
 
         middle = parts[1].split("-")
-        plate_num = middle[0]
+        plate_num = middle[0].lower()
 
         measurement_num = middle[1]
 

@@ -16,7 +16,7 @@ _DB_PATH = get_csv_filename()
 # Plates documented in the Stage 2b report section as present in the
 # experimental data but absent from the identity spreadsheet, and therefore
 # excluded from the final database.
-_PLATES_EXCLUDED_NO_IDENTITY = {"34v1", "34v2", "34v3", "35", "35v1", "35v2", "35v3"}
+_PLATES_EXCLUDED_NO_IDENTITY = {"34v3", "35"}
 
 
 @unittest.skipUnless(_DB_PATH.exists(), "Real database file not found — run the pipeline first")
