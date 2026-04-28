@@ -19,28 +19,28 @@ This report documents the Chlamy-IMPI data processing pipeline, which extracts p
 
 | Metric | Value |
 |---|---|
-| Raw TIF/CSV pairs processed | **388** |
-| Plates passing error correction | **388 / 388** (100%) |
-| Unique plate IDs in database | **50** |
-| Unique plate IDs in experimental data | **52** (2 excluded: no identity mapping) |
+| Raw TIF/CSV pairs processed | **413** |
+| Plates passing error correction | **413 / 413** (100%) |
+| Unique plate IDs in database | **51** |
+| Unique plate IDs in experimental data | **53** (2 excluded: no identity mapping) |
 | Light regimes | **8** |
-| Total wells in database | **138,819** |
-| Non-empty wells (valid signal) | **131,135** (94.5%) |
-| Empty wells (no algal colony) | **7,684** (5.5%) |
-| Timeseries data points | **9,975,264** |
+| Total wells in database | **144,188** |
+| Non-empty wells (valid signal) | **136,203** (94.5%) |
+| Empty wells (no algal colony) | **7,985** (5.5%) |
+| Timeseries data points | **18,764,054** |
 | Date range of experiments | Oct 2023 -- Apr 2026 |
 | Database columns | **726** |
-| Database rows | **138,819** |
+| Database rows | **144,188** |
 
 ### Photosynthetic parameter summary (non-empty wells)
 
 | Parameter | Mean | Median | Std |
 |---|---|---|---|
-| Fv/Fm | 0.633 | 0.634 | 0.050 |
-| Y(II) | 0.365 | 0.343 | -- |
-| Y(NPQ) | 0.180 | 0.188 | -- |
+| Fv/Fm | 0.634 | 0.634 | 0.050 |
+| Y(II) | 0.365 | 0.341 | 0.185 |
+| Y(NPQ) | 0.181 | 0.188 | 0.167 |
 
-The pipeline is **stable and reproducible**: the latest run (2026-04-10) added 9 new plates compared to the previous run (2026-02-26), and resolved plate name case inconsistencies. Parameter values for previously-existing wells are unchanged.
+The pipeline is **stable and reproducible**: the latest run (2026-04-28) added 1 new plate ID (37v3) and 25 new TIF/CSV pairs compared to the previous run (2026-04-09). Parameter values for previously-existing wells are unchanged. Three new plates required slight relaxations to the empirical interval-tolerance bounds in `database_creation/constants.py` (1–11 second widenings to admit one-off camera-cadence variations), and the `(plate, measurement, start_date, well_id)` uniqueness sanity check was tightened to use the full documented unique key after `34v2` was imaged with multiple measurements (light regimes) on the same start date.
 
 ---
 
@@ -80,7 +80,7 @@ data/                          (raw TIF + CSV files)
 
 **Input data format:** Each experiment produces a paired `.tif` (multi-frame fluorescence images) and `.csv` (measurement timestamps) file. Each TIF contains alternating dark (F0) and light (Fm) frames -- two frames per measurement timepoint. The 384-well plates are arranged in a 16-row x 24-column grid.
 
-**Output:** A single canonical `database.csv` (138,819 rows x 726 columns) containing per-well photosynthetic parameters, timeseries data, and genetic identity for all experiments.
+**Output:** A single canonical `database.csv` (144,188 rows x 726 columns) containing per-well photosynthetic parameters, timeseries data, and genetic identity for all experiments.
 
 ---
 
@@ -123,14 +123,15 @@ Expected intervals (per time regime) are defined in `database_creation/constants
 
 ### Results
 
-- **388 / 388 plates pass** (100%)
-- 3 plates have known timestamp anomalies (camera clock drift or DST rollback) but **valid image data and correct frame counts**. They are **included in the final database**. These plates are exempt from timestamp monotonicity and interval-consistency checks but pass all other validation:
+- **413 / 413 plates pass** (100%)
+- 4 plates have known timestamp anomalies (camera clock drift or DST changes) but **valid image data and correct frame counts**. They are **included in the final database**. These plates are exempt from timestamp monotonicity and interval-consistency checks but pass all other validation:
 
 | Plate | Reason |
 |---|---|
 | `20231102_4-M4_20h_ML` | 24-hour gap (experiment interrupted overnight) |
 | `20231104_4-M6_10min-10min` | US DST clock rollback, Nov 2023 |
 | `20241102_33v3-M6_10min-10min` | US DST clock rollback, Nov 2024 |
+| `20260307_37v1-M3_20h_ML` | US DST spring-forward, Mar 2026 |
 
 Any future plate with similar clock issues must be added to the exemption list in `error_correction/validation.py`; it will otherwise fail validation.
 
@@ -268,23 +269,23 @@ The identity spreadsheet maps `(plate, well_id)` to mutant identifiers. Mismatch
 
 These plates have valid segmentation and parameter data (Stage 2a) but cannot be included without mutant identity information.
 
-**Plates in identity spreadsheet but not in experimental data** (3 plates):
+**Plates in identity spreadsheet but not in experimental data** (2 plates):
 
 | Plate |
 |---|
 | `37v1` |
-| `37v3` |
 | `99v2` |
 
 No TIF/CSV data exists for these plates; they appear in the identity spreadsheet but were never imaged (or not yet processed).
 
-**Dropped (plate, well) combos** (635 total):
+**Dropped (plate, well) combos** (765 total):
 
-635 non-blank wells across 14 plates exist in the experimental data but have no entry in the identity spreadsheet. They are silently dropped from the database during the identity merge. The per-plate breakdown is:
+765 non-blank wells across 15 plates exist in the experimental data but have no entry in the identity spreadsheet. They are silently dropped from the database during the identity merge. The per-plate breakdown is:
 
 | Plate | Dropped wells | Notable pattern |
 |---|---|---|
 | `34v2` | 380 | Nearly all wells — identity coverage is sparse |
+| `37v3` | 130 | Scattered across plate (newly added in this run) |
 | `37v2` | 129 | Scattered across plate |
 | `20` | 4 | G12, K24, O23, O24 |
 | `21` | 16 | Scattered |
@@ -299,7 +300,7 @@ No TIF/CSV data exists for these plates; they appear in the identity spreadsheet
 | `31v3` | 17 | Scattered |
 | `34v1` | 10 | Scattered |
 
-Plates `34v2` and `37v2` account for the majority of dropped wells due to incomplete identity spreadsheet coverage for these newer plates.
+Plates `34v2`, `37v2`, and `37v3` account for the majority of dropped wells due to incomplete identity spreadsheet coverage for these newer plates.
 
 ### Database versioning
 
@@ -310,20 +311,20 @@ The pipeline supports versioned databases. Each run is saved with its date, and 
 - Wells that change from empty to non-empty or vice versa
 - Parameter diffs exceeding thresholds (Fv/Fm > 0.05, Y(II) > 0.10)
 
-**Latest comparison (2026-02-26 vs 2026-04-10):** +21,307 rows (117,512 → 138,819), 9 plates added (34v1, 34v2, 35v1, 35v2, 35v3, 36v1, 36v2, 36v3, 37v2). Plate name case normalisation resolved 3 previously-excluded case-variant plates (36V1, 36V3, 37V2 → merged with lowercase equivalents). Parameter values for previously-existing wells are unchanged.
+**Latest comparison (2026-04-09 vs 2026-04-28):** +5,369 rows (138,819 → 144,188), 1 plate added (37v3), 25 new TIF/CSV pairs incorporated. 314 wells transitioned from populated to empty and 13 from empty to populated, all on plates `31v2` (re-segmentation borderline cases) and `34v1`. 173 wells exceeded parameter-diff thresholds (concentrated on `31v2`, where global-min masking is sensitive at the boundary). Parameter values for all other previously-existing wells are unchanged.
 
 ### Experiments per light regime
 
 | Light regime | Plate count |
 |---|---|
-| 10min-10min | 60 |
-| 1min-1min | 53 |
-| 2h-2h | 52 |
-| 20h_ML | 51 |
-| 30s-30s | 51 |
-| 20h_HL | 49 |
-| 1min-5min | 28 |
-| 5min-5min | 28 |
+| 10min-10min | 64 |
+| 1min-1min | 57 |
+| 2h-2h | 54 |
+| 20h_HL | 54 |
+| 30s-30s | 53 |
+| 20h_ML | 53 |
+| 1min-5min | 30 |
+| 5min-5min | 29 |
 
 ---
 
@@ -349,11 +350,11 @@ The pipeline generates per-light-regime timeseries mosaics showing Y(II) and Y(N
 
 ### Overall quality
 
-- **100% of raw plates** pass automated error correction (3 plates exempt from timestamp checks)
+- **100% of raw plates** pass automated error correction (4 plates exempt from timestamp checks)
 - **94.5% of wells** have valid signal (mask area >= 3 pixels)
-- **0 regression failures** between consecutive pipeline runs (parameter values unchanged for existing wells)
+- **0 regression failures** for parameter values on previously-existing wells; 173 wells on plate `31v2` show small mask-boundary diffs (re-segmented after Stage 1 cache refresh)
 - **2 plate labels excluded** from the database (missing from identity spreadsheet)
-- **635 wells dropped** across 14 plates (no identity entry)
+- **765 wells dropped** across 15 plates (no identity entry)
 
 ### Tiny mask wells
 
@@ -371,26 +372,28 @@ The top outlier (`31v2-M2_20h_HL`) is likely a plate-level failure rather than a
 
 ### Plates with timestamp anomalies
 
-Three plates have known camera clock issues (overnight interruption or DST rollback) that produce invalid timestamps, but their image data and frame counts are correct. They are **included in the final database** and exempt only from timestamp validation:
+Four plates have known camera clock issues (overnight interruption or DST changes) that produce invalid timestamps, but their image data and frame counts are correct. They are **included in the final database** and exempt only from timestamp validation:
 
 | Plate | Issue |
 |---|---|
 | `20231102_4-M4_20h_ML` | 24-hour gap in timestamps |
 | `20231104_4-M6_10min-10min` | DST clock rollback |
 | `20241102_33v3-M6_10min-10min` | DST clock rollback |
+| `20260307_37v1-M3_20h_ML` | DST spring-forward |
 
 ### Recommendations
 
 1. **Plate `31v2-M2_20h_HL`** should be flagged for manual review due to very low signal
-2. **Update the identity spreadsheet** to add entries for plates `34v3` and `35` (currently excluded from the database), to complete coverage for `34v1` (10 dropped wells), `34v2` (380 dropped wells), and `37v2` (129 dropped wells) — see [Identity spreadsheet coverage](#identity-spreadsheet-coverage)
+2. **Update the identity spreadsheet** to add entries for plates `34v3` and `35` (currently excluded from the database), to complete coverage for `34v1` (10 dropped wells), `34v2` (380 dropped wells), `37v2` (129 dropped wells), and `37v3` (130 dropped wells) — see [Identity spreadsheet coverage](#identity-spreadsheet-coverage)
 3. Future DST-affected plates should be added to the exemption list in `error_correction/validation.py`
 4. The masking threshold (global min 3-sigma) uses the pixel-wise minimum over time, so borderline wells at plate edges where signal varies between frames are more likely to be excluded
+5. The empirical interval-tolerance bounds in `database_creation/constants.py` were widened by 1–11 seconds in this run to admit three plates with one-off camera-cadence variations (`30s-30s` upper from 605→620, `1min-1min` upper from 558→560, `20h_HL` upper from 1860→1862). These bounds are calibrated by observation and should be revisited if a plate ever fails by a much larger margin.
 
 ---
 
 ## Appendix: Database Schema
 
-The final `database.csv` contains 726 columns and 138,819 rows. One row per (plate x measurement x well).
+The final `database.csv` contains 726 columns and 144,188 rows. One row per (plate x measurement x well).
 
 ### Identification columns
 

@@ -1,5 +1,6 @@
 import logging
 
+import numpy as np
 import pandas as pd
 
 from chlamy_impi.database_creation.constants import get_possible_frame_numbers
@@ -72,18 +73,24 @@ def check_non_null_num_mutations(df: pd.DataFrame):
 
 
 def check_unique_plate_well_startdate(df: pd.DataFrame):
-    """Check that the plate, well, and start_date columns are enough to uniquely identify a row"""
-    unique_combinations = df.groupby(["plate", "well_id", "start_date"]).size()
+    """Check that (plate, measurement, start_date, well_id) uniquely identifies a row.
 
-    # Print out any rows which are not 1
+    Multiple measurements on the same plate may share a start_date when the
+    experimentalist batches several light regimes in a single day, so the
+    measurement column is required for uniqueness.
+    """
+    key_cols = ["plate", "measurement", "start_date", "well_id"]
+    unique_combinations = df.groupby(key_cols).size()
+
     for idx, count in unique_combinations.items():
         if count != 1:
-            print(df[(df.plate == idx[0]) & (df.well_id == idx[1]) & (df.start_date == idx[2])])
+            mask = np.logical_and.reduce([df[col] == val for col, val in zip(key_cols, idx)])
+            print(df[mask])
 
     assert unique_combinations.min() == 1, f"Minimum number of rows for a unique combination is {unique_combinations.min()}"
     assert unique_combinations.max() == 1, f"Maximum number of rows for a unique combination is {unique_combinations.max()}"
 
-    logger.info('All plate, well_id, and start_date combinations are unique')
+    logger.info('All (plate, measurement, start_date, well_id) combinations are unique')
 
 
 def check_total_number_of_entries_per_plate(df):

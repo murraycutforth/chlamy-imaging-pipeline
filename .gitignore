@@ -196,3 +196,6 @@ output/database_creation
 output/well_segmentation_cache
 data/chlamy
 well_segmentation_errors.txt
+data/*
+
+.claude

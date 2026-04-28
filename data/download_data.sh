@@ -1,7 +1,7 @@
 # Download all tifs and csvs in top level directory
 rclone --drive-shared-with-me copy "Google Drive - personal":"2023 Screening CliP library/Camera Data (tif, xpim, csv)" . -v --filter "+ /*.csv" --filter "- /*/**" --filter "- /*.xpim"
 rclone --drive-shared-with-me copy "Google Drive - personal":"2023 Screening CliP library/Camera Data (tif, xpim, csv)" . -v --filter "+ /*.tif" --filter "- /*/**" --filter "- /*.xpim"
-rclone --drive-shared-with-me copy "Google Drive - personal":"2023 Screening CliP library/Identities of Strains on Plates/20251002 Finalized Identities Phase I plates.xlsx" . -vv --update
+rclone --drive-shared-with-me copy "Google Drive - personal":"2023 Screening CliP library/Identities of Strains on Plates/Finalized Identities Phase I plates.xlsx" . -vv --update
 rclone --drive-shared-with-me copy "Google Drive - personal":"2023 Screening CliP library/Contamination Phase I.xlsx" . -vv --update
 
 # Write out total number of files
