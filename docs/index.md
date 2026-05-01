@@ -19,28 +19,28 @@ This report documents the Chlamy-IMPI data processing pipeline, which extracts p
 
 | Metric | Value |
 |---|---|
-| Raw TIF/CSV pairs processed | **410** |
-| Plates passing error correction | **410 / 410** (100%) |
+| Raw TIF/CSV pairs processed | **411** |
+| Plates passing error correction | **411 / 411** (100%) |
 | Unique plate IDs in database | **53** |
 | Unique plate IDs in experimental data | **53** (0 excluded — all plates have identity mapping) |
 | Light regimes | **8** |
-| Total wells in database | **152,981** |
-| Non-empty wells (valid signal) | **144,562** (94.5%) |
-| Empty wells (no algal colony) | **8,419** (5.5%) |
-| Timeseries data points | **9,968,330** |
+| Total wells in database | **153,358** |
+| Non-empty wells (valid signal) | **144,923** (94.5%) |
+| Empty wells (no algal colony) | **8,435** (5.5%) |
+| Timeseries data points | **10,000,459** |
 | Date range of experiments | Oct 2023 -- Apr 2026 |
 | Database columns | **726** |
-| Database rows | **152,981** |
+| Database rows | **153,358** |
 
 ### Photosynthetic parameter summary (non-empty wells)
 
 | Parameter | Mean | Median | Std |
 |---|---|---|---|
 | Fv/Fm | 0.635 | 0.635 | 0.050 |
-| Y(II) | 0.365 | 0.339 | 0.185 |
-| Y(NPQ) | 0.181 | 0.187 | 0.166 |
+| Y(II) | 0.365 | 0.340 | 0.185 |
+| Y(NPQ) | 0.180 | 0.187 | 0.166 |
 
-The pipeline is **stable and reproducible**: the latest run (2026-04-28) added 3 new plate IDs (`34v3`, `37v1`, `37v3`) compared to the previous run (2026-04-09). Parameter values for previously-existing wells are unchanged. Three new plates required slight relaxations to the empirical interval-tolerance bounds in `database_creation/constants.py` (1–11 second widenings to admit one-off camera-cadence variations), and the `(plate, measurement, start_date, well_id)` uniqueness sanity check was tightened to use the full documented unique key after `34v2` was imaged with multiple measurements (light regimes) on the same start date.
+The pipeline is **stable and reproducible**: the latest run (2026-05-01) added 1 new TIF/CSV pair to existing plate coverage (+377 database rows, no new plate IDs) compared to the previous run (2026-04-28). Parameter values for previously-existing wells are unchanged.
 
 ---
 
@@ -80,7 +80,7 @@ data/                          (raw TIF + CSV files)
 
 **Input data format:** Each experiment produces a paired `.tif` (multi-frame fluorescence images) and `.csv` (measurement timestamps) file. Each TIF contains alternating dark (F0) and light (Fm) frames -- two frames per measurement timepoint. The 384-well plates are arranged in a 16-row x 24-column grid.
 
-**Output:** A single canonical `database.csv` (152,981 rows x 726 columns) containing per-well photosynthetic parameters, timeseries data, and genetic identity for all experiments.
+**Output:** A single canonical `database.csv` (153,358 rows x 726 columns) containing per-well photosynthetic parameters, timeseries data, and genetic identity for all experiments.
 
 ---
 
@@ -123,7 +123,7 @@ Expected intervals (per time regime) are defined in `database_creation/constants
 
 ### Results
 
-- **410 / 410 plates pass** (100%)
+- **411 / 411 plates pass** (100%)
 - 4 plates have known timestamp anomalies (camera clock drift or DST changes) but **valid image data and correct frame counts**. They are **included in the final database**. These plates are exempt from timestamp monotonicity and interval-consistency checks but pass all other validation:
 
 | Plate | Reason |
@@ -276,9 +276,9 @@ No TIF/CSV data exists for this plate; it appears in the identity spreadsheet bu
 
 | Plate | Dropped wells | Notable pattern |
 |---|---|---|
-| `37v3` | 130 | Scattered across plate (newly added in this run) |
+| `37v3` | 130 | Scattered across plate |
 | `37v2` | 129 | Scattered across plate |
-| `37v1` | 129 | Scattered across plate (newly added in this run) |
+| `37v1` | 129 | Scattered across plate |
 | `23` | 17 | Scattered |
 | `31v1` | 17 | B02, L23, L24, and contiguous block P11–P24 |
 | `31v2` | 17 | Scattered |
@@ -305,7 +305,7 @@ The pipeline supports versioned databases. Each run is saved with its date, and 
 - Wells that change from empty to non-empty or vice versa
 - Parameter diffs exceeding thresholds (Fv/Fm > 0.05, Y(II) > 0.10)
 
-**Latest comparison (2026-04-09 vs 2026-04-28):** +14,162 rows (138,819 -> 152,981), 3 plates added (`34v3`, `37v1`, `37v3`). 750 wells transitioned from populated to empty and 15 from empty to populated. 173 wells exceeded parameter-diff thresholds. Parameter values for all other previously-existing wells are unchanged.
+**Latest comparison (2026-04-28 vs 2026-05-01):** +377 rows (152,981 -> 153,358), no new plates. 16 wells transitioned from populated to empty and 0 from empty to populated. 0 wells exceeded parameter-diff thresholds. Parameter values for all other previously-existing wells are unchanged.
 
 ### Experiments per light regime
 
@@ -314,9 +314,9 @@ The pipeline supports versioned databases. Each run is saved with its date, and 
 | 10min-10min | 66 |
 | 1min-1min | 59 |
 | 20h_HL | 57 |
-| 20h_ML | 55 |
+| 30s-30s | 56 |
 | 2h-2h | 55 |
-| 30s-30s | 55 |
+| 20h_ML | 55 |
 | 1min-5min | 32 |
 | 5min-5min | 31 |
 
@@ -388,7 +388,7 @@ Four plates have known camera clock issues (overnight interruption or DST change
 
 ## Appendix: Database Schema
 
-The final `database.csv` contains 726 columns and 152,981 rows. One row per (plate x measurement x well).
+The final `database.csv` contains 726 columns and 153,358 rows. One row per (plate x measurement x well).
 
 ### Identification columns
 
