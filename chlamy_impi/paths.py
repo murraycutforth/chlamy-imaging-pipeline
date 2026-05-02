@@ -32,6 +32,10 @@ CORRECTED_WELL_SEGMENTATION_DIR = PROJECT_ROOT / "output" / "corrected_well_segm
 IDENTITY_SPREADSHEET_PATH = \
     INPUT_DIR / "Finalized Identities Phase I plates.xlsx"
 
+# DAILY_CHECKLIST_PATH is the per-day operations log (Phase I + Phase II sheets) which
+# records contamination of each plate-measurement under the camera.
+DAILY_CHECKLIST_PATH = INPUT_DIR / "Daily Checklist Log File.xlsx"
+
 # DATABASE_DIR is where we save the output of the database creation as .csv files
 DATABASE_DIR = PROJECT_ROOT / "output" / "database_creation"
 
@@ -105,6 +109,10 @@ def npy_img_array_path(name):
 
 def get_identity_spreadsheet_path():
     return IDENTITY_SPREADSHEET_PATH
+
+
+def get_daily_checklist_path():
+    return DAILY_CHECKLIST_PATH
 
 
 

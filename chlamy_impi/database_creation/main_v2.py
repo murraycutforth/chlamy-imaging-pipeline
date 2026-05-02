@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 
 from chlamy_impi.database_creation.constants import get_possible_frame_numbers
+from chlamy_impi.database_creation.construct_contamination_df import construct_contamination_dataframe
 from chlamy_impi.database_creation.construct_identity_df import construct_identity_dataframe
 from chlamy_impi.database_creation.shared import (
     construct_gene_description_dataframe,
@@ -137,6 +138,39 @@ def merge_identity_and_experimental_dfs(
     return total_df
 
 
+def add_contamination_column(total_df: pd.DataFrame, contamination_df: pd.DataFrame) -> pd.DataFrame:
+    """Add a binary ``contamination`` column (1 = contaminated, 0 = clean) keyed on
+    ``(plate, measurement, start_date, well_id)``. Plate-measurement-dates not present
+    in the daily checklist receive 0 across all wells.
+
+    Date alignment matters: many plate-measurement labels appear on multiple
+    ``start_date``s (separate physical experiments, sometimes under different light
+    regimes). Joining on ``start_date`` ensures contamination only flags the
+    specific run the lab observed it on."""
+    if contamination_df.empty:
+        total_df["contamination"] = 0
+        return total_df
+
+    flagged = contamination_df.copy()
+    flagged["contamination"] = 1
+    # Force string dtype on start_date for both sides so the merge keys align even
+    # when one side is loaded as datetime.
+    flagged["start_date"] = flagged["start_date"].astype(str)
+    merged = total_df.copy()
+    merged["start_date"] = merged["start_date"].astype(str)
+    merged = pd.merge(
+        merged,
+        flagged,
+        on=["plate", "measurement", "start_date", "well_id"],
+        how="left",
+        validate="m:1",
+    )
+    merged["contamination"] = merged["contamination"].fillna(0).astype(int)
+    n_flagged = int(merged["contamination"].sum())
+    logger.info(f"Flagged {n_flagged} wells as contaminated from daily checklist")
+    return merged
+
+
 def main():
     import datetime
 
@@ -158,6 +192,9 @@ def main():
 
     total_df = merge_identity_and_experimental_dfs(exptl_data, identity_df)
     logger.info(f"Total dataframe shape: {total_df.shape}")
+
+    contamination_df = construct_contamination_dataframe()
+    total_df = add_contamination_column(total_df, contamination_df)
 
     logger.info("Running sanity checks...")
     final_df_sanity_checks(total_df)
